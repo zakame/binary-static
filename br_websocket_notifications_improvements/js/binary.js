@@ -19236,6 +19236,8 @@ var pages_config = {
     'get-started-jp': { module: GetStartedJP },
     'home-jp': { module: HomeJP, not_authenticated: true },
     'how-to-trade-mt5': { module: TabSelector },
+    'ib-faq': { module: StaticPages.IBProgrammeFAQ },
+    'ib-signup': { module: TabSelector },
     'job-details': { module: JobDetails },
     'metals': { module: GetStarted.Metals },
     'open-positions': { module: StaticPages.OpenPositions },
@@ -29448,6 +29450,14 @@ module.exports = {
     AffiliatesFAQ: {
         onLoad: function onLoad() {
             MenuSelector.init(['general', 'account-management-and-tracking', 'marketing-and-promotions', 'support']);
+        },
+        onUnload: function onUnload() {
+            MenuSelector.clean();
+        }
+    },
+    IBProgrammeFAQ: {
+        onLoad: function onLoad() {
+            MenuSelector.init(['general', 'account-management', 'marketing-and-promotions']);
         },
         onUnload: function onUnload() {
             MenuSelector.clean();
