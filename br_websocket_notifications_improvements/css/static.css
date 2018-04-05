@@ -1163,18 +1163,16 @@ body #not_authenticated_financial ul.checked > li {
       background-color: #2a3052;
       padding: 30px;
       position: absolute;
-      z-index: 1;
-      top: 50px; }
+      top: 50px;
+      width: 100%; }
       @media (max-width: 480px) {
         .careers-content .career .graduate-container .graduate-box h1 {
-          font-size: 1.520875rem;
-          text-align: center; } }
+          font-size: 1.520875rem; } }
       .careers-content .career .graduate-container .graduate-box p {
         color: #fff; }
         @media (max-width: 480px) {
           .careers-content .career .graduate-container .graduate-box p {
-            font-size: 0.8695652174rem;
-            text-align: center; } }
+            font-size: 0.8695652174rem; } }
       .careers-content .career .graduate-container .graduate-box a.button span {
         background-color: #fff;
         color: #2a3052;
@@ -1187,10 +1185,14 @@ body #not_authenticated_financial ul.checked > li {
           top: unset; } }
       @media (max-width: 768px) {
         .careers-content .career .graduate-container .graduate-box {
-          top: 0; } }
+          text-align: center;
+          background-color: transparent;
+          top: 50%;
+          left: 50%;
+          -webkit-transform: translate(-50%, -50%);
+                  transform: translate(-50%, -50%); } }
       @media (max-width: 480px) {
         .careers-content .career .graduate-container .graduate-box {
-          background-color: transparent;
           padding: 15px; } }
   .careers-content .career ul.role-section {
     display: -webkit-box;
