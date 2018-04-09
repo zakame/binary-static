@@ -6273,7 +6273,7 @@ var ViewPopup = function () {
         containerSetText('trade_details_purchase_price', formatMoney(contract.currency, contract.buy_price));
         containerSetText('trade_details_multiplier', formatMoney(contract.currency, multiplier, false, 3, 2));
         if (Lookback.isLookback(contract.contract_type)) {
-            containerSetText('trade_details_payout', Lookback.getLookbackFormula(contract.contract_type, formatMoney(contract.currency, multiplier, false, 3, 2)));
+            containerSetText('trade_details_payout', Lookback.getFormula(contract.contract_type, formatMoney(contract.currency, multiplier, false, 3, 2)));
         } else {
             containerSetText('trade_details_payout', formatMoney(contract.currency, contract.payout));
         }
@@ -6661,12 +6661,12 @@ var ViewPopup = function () {
             low_barrier_text = 'Low Barrier';
 
         if (Lookback.isLookback(contract.contract_type)) {
-            var _Lookback$getLBBarrie = Lookback.getLBBarrierLabel(contract.contract_type, contract.barrier_count);
+            var _Lookback$getBarrierL = Lookback.getBarrierLabel(contract.contract_type, contract.barrier_count);
 
-            var _Lookback$getLBBarrie2 = _slicedToArray(_Lookback$getLBBarrie, 2);
+            var _Lookback$getBarrierL2 = _slicedToArray(_Lookback$getBarrierL, 2);
 
-            barrier_text = _Lookback$getLBBarrie2[0];
-            low_barrier_text = _Lookback$getLBBarrie2[1];
+            barrier_text = _Lookback$getBarrierL2[0];
+            low_barrier_text = _Lookback$getBarrierL2[1];
         } else if (contract.barrier_count > 1) {
             barrier_text = 'High Barrier';
         } else if (/^DIGIT(MATCH|DIFF)$/.test(contract.contract_type)) {
@@ -7981,7 +7981,7 @@ var AccountOpening = function () {
 
             var $options = $('<div/>');
             residence_list.forEach(function (res) {
-                $options.append(makeOption({ text: res.text, value: res.value }));
+                $options.append(makeOption({ text: res.text, value: res.value, is_disabled: res.disabled }));
 
                 if (residence_value === res.value) {
                     residence_text = res.text;
@@ -8453,7 +8453,6 @@ var isEmptyObject = __webpack_require__(1).isEmptyObject;
 
 var MBPrice = function () {
     var price_selector = '.prices-wrapper .price-rows';
-    var is_jp_client = Client.isJPClient();
 
     var prices = {};
     var contract_types = {};
@@ -8544,7 +8543,7 @@ var MBPrice = function () {
         }
 
         var el_price_row = document.querySelector('#templates .price-row');
-        if (is_jp_client) {
+        if (Client.isJPClient()) {
             el_price_row.querySelectorAll('.base-value').forEach(function (el) {
                 el.classList.remove('invisible');
             });
@@ -8576,7 +8575,7 @@ var MBPrice = function () {
                     val: el_sell.getElementsByClassName('value')[0]
                 };
 
-                if (is_jp_client) {
+                if (Client.isJPClient()) {
                     el_rows[barrier][contract_type].buy.base_value = el_buy.getElementsByClassName('base-value')[0];
                     el_rows[barrier][contract_type].sell.base_value = el_sell.getElementsByClassName('base-value')[0];
                 }
@@ -8657,7 +8656,7 @@ var MBPrice = function () {
         el_sell.sell.classList[values.sell_price ? 'remove' : 'add']('inactive');
         el_sell.val.textContent = formatPrice(values.sell_price);
 
-        if (is_jp_client) {
+        if (Client.isJPClient()) {
             el_buy.base_value.textContent = formatPrice(values.ask_price / values.payout);
             el_sell.base_value.textContent = formatPrice(values.sell_price / values.payout);
         }
@@ -12962,6 +12961,7 @@ var Geocoder = __webpack_require__(152);
 var CommonFunctions = __webpack_require__(4);
 var localize = __webpack_require__(3).localize;
 var State = __webpack_require__(6).State;
+var getPropertyValue = __webpack_require__(1).getPropertyValue;
 __webpack_require__(209);
 
 var PersonalDetails = function () {
@@ -13197,7 +13197,7 @@ var PersonalDetails = function () {
                 }
             });
         }
-        showFormMessage(is_error ? 'Sorry, an error occurred while processing your account.' : 'Your settings have been updated successfully.', !is_error);
+        showFormMessage(is_error ? getPropertyValue(response, ['error', 'message']) || 'Sorry, an error occurred while processing your account.' : 'Your settings have been updated successfully.', !is_error);
     };
 
     var showFormMessage = function showFormMessage(msg, is_success) {
@@ -13220,7 +13220,7 @@ var PersonalDetails = function () {
 
             if (residence) {
                 var $tax_residence = $('#tax_residence');
-                $tax_residence.html($options.html()).promise().done(function () {
+                $tax_residence.html($options_with_disabled.html()).promise().done(function () {
                     setTimeout(function () {
                         $tax_residence.select2().val(get_settings_data.tax_residence ? get_settings_data.tax_residence.split(',') : '').trigger('change');
                         setVisibility('#tax_residence');
@@ -21229,7 +21229,8 @@ var template = __webpack_require__(1).template;
 
 var DepositWithdraw = function () {
     var cashier_type = void 0,
-        token = void 0;
+        token = void 0,
+        $loading = void 0;
 
     var container = '#deposit_withdraw';
 
@@ -21342,6 +21343,7 @@ var DepositWithdraw = function () {
             $element.text(message);
         }
         $element.siblings().setVisibility(0).end().setVisibility(1);
+        $loading.remove();
         $(container).find('#' + parent).setVisibility(1);
     };
 
@@ -21375,6 +21377,7 @@ var DepositWithdraw = function () {
 
     var initUKGC = function initUKGC() {
         var ukgc_form_id = '#frm_ukgc';
+        $loading.remove();
         $(ukgc_form_id).setVisibility(1);
         FormManager.init(ukgc_form_id, [{ request_field: 'ukgc_funds_protection', value: 1 }, { request_field: 'tnc_approval', value: 1 }]);
         FormManager.handleSubmit({
@@ -21430,10 +21433,15 @@ var DepositWithdraw = function () {
                 getElementById('message_bitcoin_cash').setVisibility(1);
             }
             $iframe.attr('src', response.cashier).parent().setVisibility(1);
+            setTimeout(function () {
+                // wait for iframe contents to load before removing loading bar
+                $loading.remove();
+            }, 1000);
         }
     };
 
     var onLoad = function onLoad() {
+        $loading = $('#loading_cashier');
         getCashierType();
         var req_cashier_password = BinarySocket.send({ cashier_password: 1 });
         var req_get_account_status = BinarySocket.send({ get_account_status: 1 });
@@ -24640,6 +24648,7 @@ var Authenticate = function () {
 
     var onLoad = function onLoad() {
         BinarySocket.send({ get_account_status: 1 }).then(function (response) {
+            $('#loading_authenticate').remove();
             if (response.error) {
                 $('#error_message').setVisibility(1).text(response.error.message);
             } else {
