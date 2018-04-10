@@ -20843,10 +20843,12 @@ var KnowledgeTestUI = function () {
         var $question_data = $('<td></td>').text(localize(question.question_localized));
         var $question_link = $('<a></a>', {
             name: question.id,
-            class: 'no-underline'
-            // 'data-balloon': question.tooltip,
+            class: 'no-underline show_mobile',
+            'data-balloon': question.tooltip,
+            'data-balloon-length': 'medium',
+            'data-balloon-pos': 'up'
         });
-        var $question_icon = $('<img>', { src: urlForStatic('/images/common/question_1.png'), class: 'invisible' });
+        var $question_icon = $('<img>', { src: urlForStatic('/images/common/question_1.png') });
         $question_data.append($question_link.append($question_icon));
 
         var true_false = createTrueFalseBox(question, show_answer);
