@@ -19373,6 +19373,11 @@ module.exports = Contents;
 
 
 var Footer = function () {
+    var clearNotification = function clearNotification() {
+        var $status_notification = $('#status_notification');
+        $status_notification.slideUp(200);
+    };
+
     var displayNotification = function displayNotification(message) {
         var $status_notification = $('#status_notification');
         var $status_message_text = $('#status_notification_text');
@@ -19387,6 +19392,7 @@ var Footer = function () {
     };
 
     return {
+        clearNotification: clearNotification,
         displayNotification: displayNotification
     };
 }();
@@ -19994,6 +20000,8 @@ var BinarySocketGeneral = function () {
                     }
                     if (response.website_status.message) {
                         Footer.displayNotification(response.website_status.message);
+                    } else {
+                        Footer.clearNotification();
                     }
                     BinarySocket.availability(is_available);
                     setCurrencies(response.website_status);
