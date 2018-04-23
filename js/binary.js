@@ -20518,11 +20518,13 @@ var Client = __webpack_require__(2);
 var BinarySocket = __webpack_require__(5);
 var localize = __webpack_require__(3).localize;
 var State = __webpack_require__(6).State;
-var template = __webpack_require__(1).template;
 
 var CashierJP = function () {
     var _onLoad = function _onLoad(action) {
         if (Client.isJPClient() && Client.get('residence') !== 'jp') BinaryPjax.loadPreviousUrl();
+        if (action === 'deposit') {
+            return;
+        }
         var $container = $('#japan_cashier_container');
         BinarySocket.send({ cashier_password: 1 }).then(function (response) {
             if (response.error) {
@@ -20540,16 +20542,12 @@ var CashierJP = function () {
                         } else {
                             $container.find('#cashier_unlocked_message').setVisibility(1);
                             BinarySocket.wait('get_settings').then(function () {
-                                if (action === 'deposit') {
-                                    $('#name_id').text((Client.get('loginid') || 'JP12345') + ' ' + (State.getResponse('get_settings.first_name') || 'Joe Bloggs'));
-                                } else if (action === 'withdraw') {
-                                    $('#id123-control22598118').val(Client.get('loginid'));
-                                    $('#id123-control22598060').val(Client.get('email'));
-                                    $('#japan_cashier_container button').on('click', function (e) {
-                                        var result = errorHandler();
-                                        if (!result) e.preventDefault();
-                                    });
-                                }
+                                $('#id123-control22598118').val(Client.get('loginid'));
+                                $('#id123-control22598060').val(Client.get('email'));
+                                $('#japan_cashier_container button').on('click', function (e) {
+                                    var result = errorHandler();
+                                    if (!result) e.preventDefault();
+                                });
                             });
                         }
                     }
@@ -20568,7 +20566,7 @@ var CashierJP = function () {
         };
 
         if (isNaN(withdrawal_amount) || +withdrawal_amount < 1) {
-            showError(template('Should be more than [_1]', ['¥1']));
+            showError(localize('Should be more than [_1]', ['¥1']));
             return false;
         } else if (parseInt(Client.get('balance')) < withdrawal_amount) {
             showError('Insufficient balance.');
@@ -21226,8 +21224,12 @@ var Cashier = function () {
     };
 
     var onLoad = function onLoad() {
-        if (Client.isJPClient() && Client.get('residence') !== 'jp') {
-            BinaryPjax.loadPreviousUrl();
+        if (Client.isJPClient()) {
+            if (Client.get('residence') !== 'jp') {
+                BinaryPjax.loadPreviousUrl();
+            } else {
+                $('.deposit').parent().addClass('button-disabled').attr('href', 'javascript:;');
+            }
         }
         if (Client.isLoggedIn()) {
             BinarySocket.wait('authorize').then(function () {
@@ -28429,19 +28431,17 @@ var getPropertyValue = __webpack_require__(1).getPropertyValue;
 
 var VirtualAccOpening = function () {
     var form = '#virtual-form';
-    var is_jp_client = void 0;
 
     var onLoad = function onLoad() {
-        is_jp_client = Client.isJPClient();
-        if (is_jp_client) {
-            handleJPForm();
-        } else {
-            BinarySocket.send({ residence_list: 1 }).then(function (response) {
-                return handleResidenceList(response.residence_list);
-            });
-            $('#residence').setVisibility(1);
-            bindValidation();
+        if (Client.isJPClient()) {
+            return;
         }
+
+        BinarySocket.send({ residence_list: 1 }).then(function (response) {
+            return handleResidenceList(response.residence_list);
+        });
+        $('#residence').setVisibility(1);
+        bindValidation();
 
         FormManager.handleSubmit({
             form_selector: form,
@@ -28507,15 +28507,6 @@ var VirtualAccOpening = function () {
         FormManager.init(form, req, true);
     };
 
-    var handleJPForm = function handleJPForm() {
-        // show email consent field for japanese accounts
-        // and don't allow them to change residence
-        var $residence = $('#residence');
-        $residence.replaceWith($('<label/>', { id: 'residence', 'data-value': 'jp', text: localize('Japan') }));
-        $('#email_consent').parent().parent().setVisibility(1);
-        bindValidation();
-    };
-
     var handleNewAccount = function handleNewAccount(response) {
         if (!response) return false;
         var error = response.error;
@@ -28532,7 +28523,7 @@ var VirtualAccOpening = function () {
                         loginid: new_account.client_id,
                         token: new_account.oauth_token,
                         is_virtual: true,
-                        redirect_url: is_jp_client ? urlFor('new_account/landing_page') : urlFor('new_account/welcome')
+                        redirect_url: urlFor('new_account/welcome')
                     });
                 }
             });
@@ -29265,10 +29256,6 @@ var HomeJP = function () {
 
     var onLoad = function onLoad() {
         Home.onLoad();
-
-        $('#start_now').click(function () {
-            $.scrollTo($('#frm_verify_email'), 500, { offset: -10 });
-        });
 
         margin = 0;
         $go_right = $('.go-right');
@@ -30546,7 +30533,7 @@ var _initialiseProps = function _initialiseProps() {
                 key = _ref13[0],
                 node = _ref13[1];
 
-            if (node && node.offsetParent && node.offsetTop - 40 <= position) {
+            if (node && node.offsetParent && node.offsetTop - 41 <= position) {
                 arr.push(key);
             }
         });
