@@ -924,7 +924,7 @@ var BinarySocket = function () {
     var is_available = true;
     var is_disconnect_called = false;
 
-    var socket_url = getSocketURL() + '?app_id=' + getAppId() + '&l=' + getLanguage();
+    var socket_url = getSocketURL() + '?app_id=' + getAppId() + '&l=' + getLanguage() + '&debug=1';
     var timeouts = {};
     var promises = {};
 
