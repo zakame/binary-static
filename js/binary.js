@@ -5112,15 +5112,16 @@ var MBContract = function () {
         duration = duration ? duration.replace('0d', '1d') : '';
 
         var toDate = function toDate(date) {
-            var text_value = moment.utc(date * 1000).utcOffset(Client.isJPClient() ? '+09:00' : '+00:00').locale(getLanguage().toLowerCase()).format('MMM Do, HH:mm');
-            if (Client.isJPClient()) {
-                text_value = text_value.replace(/08:59/, '09:00«');
+            var text_value = moment.utc(date * 1000).utcOffset(is_jp_client ? '+09:00' : '+00:00').locale(getLanguage().toLowerCase());
+            if (is_jp_client) {
+                text_value = text_value.format('MMM Do, HH:mm').replace(/08:59/, '09:00«');
+            } else {
+                text_value = text_value.format('HH:mm');
             }
             return text_value;
         };
         return {
-            start: toDate(date_start),
-            end: toDate(date_expiry),
+            end: is_jp_client ? toDate(date_expiry) : [toDate(date_start), toDate(date_expiry)].join('-') + ' GMT',
             duration: durationText(duration, is_jp_client)
         };
     };
@@ -5312,16 +5313,17 @@ var MBContract = function () {
         }
         if ($list.children().length === 0) {
             var default_value = MBDefaults.get('category');
+            var is_jp_client = Client.isJPClient();
             categories.forEach(function (category, idx) {
                 if (available_contracts.find(function (contract) {
                     return contract.contract_category === category.value;
                 })) {
                     var is_current = !default_value && idx === 0 || category.value === default_value;
                     var el_contract_type = void 0;
-                    if (Client.isJPClient()) {
+                    if (is_jp_client) {
                         el_contract_type = '<span class="contract-type gr-6 ' + category.type1 + '"><span>' + localize(getTemplate(category.type1).name) + '</span></span>\n                             <span class="contract-type gr-6 ' + category.type2 + ' negative-color"><span>' + localize(getTemplate(category.type2).name) + '</span></span>';
                     } else {
-                        el_contract_type = '<div class="category-wrapper"><div class="contract-type ' + category.type1 + '" /><div>' + localize(getTemplate(category.type1).name) + '</div></div>\n                             <div class="category-wrapper"><div class="contract-type ' + category.type2 + ' negative-color" /><div>' + localize(getTemplate(category.type2).name) + '</div></div>';
+                        el_contract_type = '<div class="category-wrapper gr-6"><div class="contract-type ' + category.type2 + '" /><div>' + localize(getTemplate(category.type2).name) + '</div></div>\n                             <div class="category-wrapper gr-6"><div class="contract-type ' + category.type1 + ' negative-color" /><div>' + localize(getTemplate(category.type1).name) + '</div></div>';
                     }
                     var $current = $('<div/>', {
                         value: category.value,
@@ -5353,16 +5355,17 @@ var MBContract = function () {
     };
 
     var getTemplate = function getTemplate(contract_type) {
+        var is_jp_client = Client.isJPClient();
         var templates = {
             PUT: {
                 opposite: 'CALLE',
-                order: 0,
+                order: is_jp_client ? 0 : 1,
                 name: 'Lower',
                 description: '[_1] [_2] payout if [_3] is strictly lower than Barrier at close on [_4].'
             },
             CALLE: {
                 opposite: 'PUT',
-                order: 1,
+                order: is_jp_client ? 1 : 0,
                 name: 'Higher',
                 description: '[_1] [_2] payout if [_3] is strictly higher than or equal to Barrier at close on [_4].'
             },
@@ -11819,7 +11822,7 @@ var MBProcess = function () {
 
         var $list = $underlyings.find('.list');
         $list.empty();
-        $underlyings.find('.current').html($('<div/>', { class: 'gr-row' }).append($('<img/>', { class: 'gr-3 gr-no-gutter-m' })).append($('<span/>', { class: 'name gr-6 gr-5-m align-self-center' })).append($('<span/>', { class: 'gr-3 gr-4-m align-self-center still', id: 'spot' })));
+        $underlyings.find('.current').html($('<div/>', { class: 'gr-row' }).append($('<span/>', { class: 'nav-caret ja-hide' })).append($('<img/>', { class: 'gr-3 gr-no-gutter-m' })).append($('<span/>', { class: 'name gr-6 gr-5-m align-self-center' })).append($('<span/>', { class: 'gr-3 gr-4-m align-self-center still', id: 'spot' })));
 
         var selected_symbol = selected;
         if (Object.keys(all_symbols).indexOf(selected) === -1) selected_symbol = '';
@@ -21891,11 +21894,12 @@ var MBDisplayCurrencies = function MBDisplayCurrencies() {
     var $list = $currency.find('.list');
     var $current = $currency.find('.current');
     var currencies = State.getResponse('payout_currencies');
+    var is_jp_client = isJPClient();
     var def_value = void 0;
 
     if (!$currency.length) return;
     $list.empty();
-    if (!isJPClient()) {
+    if (!is_jp_client) {
         var def_curr = MBDefaults.get('currency');
         def_value = def_curr && currencies.indexOf(def_curr) >= 0 ? def_curr : currencies[0];
         if (currencies.length > 1) {
@@ -21906,7 +21910,7 @@ var MBDisplayCurrencies = function MBDisplayCurrencies() {
                 }
             });
         }
-        $current.html(formatCurrency(def_value));
+        $current.html($('<span/>', { class: 'nav-caret' })).append(formatCurrency(def_value));
     } else {
         def_value = 'JPY';
         $current.html($('<span/>', { text: localize('Lots'), 'data-balloon': localize('Payout per lot = 1,000') }));
@@ -21915,9 +21919,12 @@ var MBDisplayCurrencies = function MBDisplayCurrencies() {
     MBDefaults.set('currency', def_value);
     // if there is no currency drop down, remove hover style from currency
     if (!$list.children().length) {
-        $current.css({ 'background-color': 'white' }).hover(function () {
+        if (!is_jp_client) {
+            $currency.removeClass('gr-5').addClass('gr-3').siblings('#payout').removeClass('gr-7').addClass('gr-9');
+        }
+        $current.css({ 'background-color': 'white', 'border-right': 'none' }).hover(function () {
             $(this).css({ 'background-color': 'white', cursor: 'auto' });
-        });
+        }).off('click').find('.nav-caret').addClass('invisible').end().find('.symbols:before').css({ 'margin-right': '2px' });
     }
 };
 
@@ -21955,6 +21962,7 @@ var MBTradingEvents = function () {
     var initiate = function initiate() {
         var $form = $('.trade_form');
         var hidden_class = 'invisible';
+        var border_class = 'primary-border-color';
         var is_jp_client = Client.isJPClient();
 
         $(document).on('click', function (e) {
@@ -21962,24 +21970,20 @@ var MBTradingEvents = function () {
             makeListsInvisible();
         });
 
-        $form.find('.current').on('click', function (e) {
+        $form.find('.current, .header-current').on('click', function (e) {
             e.stopPropagation();
-            var $list = $(this).siblings('.list');
-            toggleList($list);
-        });
-
-        $form.find('.header-current').on('click', function (e) {
-            e.stopPropagation();
-            var $list = $('#period').find('.list');
-            toggleList($list);
-        });
-
-        var toggleList = function toggleList($list) {
+            var $this = $(this);
+            var $list = $this.siblings('.list');
+            if (!$list.length) {
+                $list = $this.siblings().find('.list'); // in case of .header-current
+            };
             if ($list.hasClass(hidden_class)) {
                 makeListsInvisible();
             }
             $list.toggleClass(hidden_class);
-        };
+            $this.toggleClass(border_class).siblings().find('.current').toggleClass(border_class).end().end().parent().siblings('.header-current').toggleClass(border_class);
+        });
+
         /*
          * attach event to underlying change, event need to request new contract details and price
          */
@@ -22024,6 +22028,18 @@ var MBTradingEvents = function () {
                 $('.remaining-time').removeClass('alert');
                 MBContract.displayRemainingTime(true, is_jp_client);
             });
+            if (!is_jp_client) {
+                var $header_cur = $form.find('.header-current');
+                $period.on('mouseover', function (e) {
+                    e.stopPropagation();
+                    $header_cur.addClass(border_class);
+                }).on('mouseleave', function (e) {
+                    e.stopPropagation();
+                    if ($period.find('.list').hasClass(hidden_class)) {
+                        $header_cur.removeClass(border_class);
+                    }
+                });
+            }
         }
 
         var validatePayout = function validatePayout(payout_amount, $error_wrapper) {
@@ -22202,6 +22218,7 @@ var MBTradingEvents = function () {
 
         var makeListsInvisible = function makeListsInvisible() {
             $form.find('.list, #payout_list').setVisibility(0).end().find('#period, #category').setVisibility(1);
+            $form.find('.current, .header-current').removeClass(border_class);
         };
     };
 
@@ -22347,7 +22364,9 @@ var MBTradePage = function () {
     var showCurrency = function showCurrency(currency) {
         if (currency) {
             var el_payout_amount = getElementById('payout_amount');
-            el_payout_amount.textContent += ' (' + currency + ')';
+            if (!new RegExp(currency).test(el_payout_amount.textContent)) {
+                el_payout_amount.textContent += ' (' + currency + ')';
+            }
 
             if (getDecimalPlaces(currency) > 2) {
                 var el_category = getElementById('category');
