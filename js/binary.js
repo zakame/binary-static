@@ -5809,7 +5809,7 @@ var DatePicker = function () {
             var format_value = value && date_picker_conf.type !== 'diff' ? toReadableFormat(moment(value)) : $selector.val();
             $selector.attr({ type: 'text', 'data-picker': 'jquery', 'data-value': value }).removeAttr('min max').val(format_value);
             if ($selector.attr('data-readonly')) $selector.attr('readonly', 'readonly').removeAttr('data-readonly');
-            if ($selector.attr('data-value') && $selector.hasClass('clearable')) {
+            if ($selector.attr('data-value') && $selector.hasClass('clearable') && !$selector.attr('disabled')) {
                 clearable($selector);
             }
             create(selector);
@@ -11643,7 +11643,7 @@ var TimePicker = function () {
         if ($(window).width() > 769 && $selector.attr('data-picker') !== 'jquery' || $(window).width() < 770 && !checkInput('time', 'not-a-time')) {
             $selector.attr({ type: 'text', 'data-picker': 'jquery', readonly: 'readonly' });
             $selector.removeAttr('min max');
-            if ($selector.attr('data-value') && $selector.hasClass('clearable')) {
+            if ($selector.attr('data-value') && $selector.hasClass('clearable') && !$selector.attr('disabled')) {
                 clearable($selector);
             }
             create(selector);
@@ -26669,7 +26669,9 @@ var SelfExclusion = function () {
         fields = void 0,
         self_exclusion_data = void 0,
         set_30day_turnover = void 0,
-        currency = void 0;
+        currency = void 0,
+        is_gamstop_client = void 0,
+        has_exclude_until = void 0;
 
     var form_id = '#frm_self_exclusion';
     var timeout_date_id = '#timeout_until_date';
@@ -26691,12 +26693,18 @@ var SelfExclusion = function () {
 
         $('.prepend_currency').parent().prepend(Currency.formatCurrency(currency));
 
+        // gamstop is only applicable for UK residence & for MX, MLT clients
+        is_gamstop_client = /gb/.test(Client.get('residence')) && /iom|malta/.test(Client.get('landing_company_shortcode'));
+
         initDatePicker();
         getData(true);
     };
 
     var getData = function getData(scroll) {
         BinarySocket.send({ get_self_exclusion: 1 }).then(function (response) {
+            if (response.get_self_exclusion.exclude_until) {
+                has_exclude_until = true;
+            }
             if (response.error) {
                 if (response.error.code === 'ClientSelfExclusion') {
                     Client.sendLogoutRequest();
@@ -26708,13 +26716,14 @@ var SelfExclusion = function () {
                 return;
             }
             BinarySocket.send({ get_account_status: 1 }).then(function (data) {
-                var has_to_set_30day_turnover = /ukrts_max_turnover_limit_not_set/.test(data.get_account_status.status);
+                var has_to_set_30day_turnover = !has_exclude_until && /ukrts_max_turnover_limit_not_set/.test(data.get_account_status.status);
                 if (typeof set_30day_turnover === 'undefined') {
                     set_30day_turnover = has_to_set_30day_turnover;
                 }
                 $('#frm_self_exclusion').find('fieldset > div.form-row:not(.max_30day_turnover)').setVisibility(!has_to_set_30day_turnover);
                 $('#description_max_30day_turnover').setVisibility(has_to_set_30day_turnover);
                 $('#description').setVisibility(!has_to_set_30day_turnover);
+                $('#gamstop_info_top').setVisibility(is_gamstop_client);
                 $('#loading').setVisibility(0);
                 $form.setVisibility(1);
                 self_exclusion_data = response.get_self_exclusion;
@@ -26722,21 +26731,26 @@ var SelfExclusion = function () {
                     fields[key] = value.toString();
                     if (key === 'timeout_until') {
                         var timeout = moment.unix(value);
-                        var date = timeout.format('DD MMM, YYYY');
-                        var time = timeout.format('HH:mm');
-                        $form.find(timeout_date_id).val(date);
-                        $form.find(timeout_time_id).val(time);
+                        var date_value = timeout.format('YYYY-MM-DD');
+                        var time_value = timeout.format('HH:mm');
+                        setDateTimePicker(timeout_date_id, date_value);
+                        setDateTimePicker(timeout_time_id, time_value, true);
+                        $form.find('label[for="timeout_until_date"]').text('Timed out until');
                         return;
                     }
-
+                    if (key === 'exclude_until') {
+                        setDateTimePicker(exclude_until_id, value);
+                        $form.find('label[for="exclude_until"]').text('Excluded from the website until');
+                        return;
+                    }
                     if (key === 'max_30day_turnover') {
                         var should_be_checked = parseInt(value) === TURNOVER_LIMIT;
                         $('#chk_no_limit').prop('checked', should_be_checked);
                         setMax30DayTurnoverLimit(should_be_checked);
                     }
-
-                    $form.find('#' + key).val(value);
+                    $form.find('#' + key).attr('disabled', has_exclude_until).val(value);
                 });
+                $form.find('#btn_submit').setVisibility(!has_exclude_until);
 
                 $('#chk_no_limit').on('change', function () {
                     setMax30DayTurnoverLimit($(this).is(':checked'));
@@ -26746,6 +26760,12 @@ var SelfExclusion = function () {
                 if (scroll) scrollToHashSection();
             });
         });
+    };
+
+    var setDateTimePicker = function setDateTimePicker(id, data_value) {
+        var is_timepicker = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : false;
+
+        $form.find(id).attr('disabled', has_exclude_until).attr('data-value', data_value).val(is_timepicker ? data_value : moment(data_value).format('DD MMM, YYYY')); // display format
     };
 
     var setMax30DayTurnoverLimit = function setMax30DayTurnoverLimit(is_checked) {
@@ -26867,6 +26887,7 @@ var SelfExclusion = function () {
 
         $(timeout_date_id + ', ' + exclude_until_id).change(function () {
             dateValueChanged(this, 'date');
+            $('#gamstop_info_bottom').setVisibility(is_gamstop_client && this.getAttribute('data-value'));
         });
     };
 
