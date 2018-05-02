@@ -2834,6 +2834,9 @@ var Header = function () {
                 authenticate: function authenticate() {
                     return buildMessage('[_1]Authenticate your account[_2] now to take full advantage of all payment methods available.', 'user/authenticate');
                 },
+                cashier_locked: function cashier_locked() {
+                    return localize('Deposits and withdrawals have been disabled on your account. Please check your email for more details.');
+                },
                 currency: function currency() {
                     return buildMessage('Please set the [_1]currency[_2] of your account.', 'user/set-currency');
                 },
@@ -2862,13 +2865,20 @@ var Header = function () {
                     return buildMessage('Please [_1]accept the updated Terms and Conditions[_2] to lift your withdrawal and trading limits.', 'user/tnc_approvalws');
                 },
                 unwelcome: function unwelcome() {
-                    return buildMessage('Your account is restricted. Kindly [_1]contact customer support[_2] for assistance.', 'contact');
+                    return buildMessage('Trading and deposits have been disabled on your account. Kindly [_1]contact customer support[_2] for assistance.', 'contact');
+                },
+                withdrawal_locked: function withdrawal_locked() {
+                    return localize('Withdrawals have been disabled on your account. Please check your email for more details.');
                 }
             };
 
             var validations = {
                 authenticate: function authenticate() {
                     return +get_account_status.prompt_client_to_authenticate;
+                },
+                cashier_locked: function cashier_locked() {
+                    return (/cashier_locked/.test(status)
+                    );
                 },
                 currency: function currency() {
                     return !Client.get('currency');
@@ -2901,13 +2911,17 @@ var Header = function () {
                     return Client.shouldAcceptTnc();
                 },
                 unwelcome: function unwelcome() {
-                    return (/unwelcome|(cashier|withdrawal)_locked/.test(status)
+                    return (/unwelcome/.test(status)
+                    );
+                },
+                withdrawal_locked: function withdrawal_locked() {
+                    return (/withdrawal_locked/.test(status)
                     );
                 }
             };
 
             // real account checks in order
-            var check_statuses_real = ['excluded_until', 'tnc', 'financial_limit', 'risk', 'tax', 'currency', 'document_review', 'document_needs_action', 'authenticate', 'unwelcome'];
+            var check_statuses_real = ['excluded_until', 'tnc', 'financial_limit', 'risk', 'tax', 'currency', 'document_review', 'document_needs_action', 'authenticate', 'cashier_locked', 'withdrawal_locked', 'unwelcome'];
 
             // virtual checks
             var check_statuses_virtual = ['residence'];
@@ -19529,9 +19543,11 @@ module.exports = LoggedInHandler;
 "use strict";
 
 
+var Client = __webpack_require__(2);
 var getElementById = __webpack_require__(4).getElementById;
 var applyToAllElements = __webpack_require__(1).applyToAllElements;
 var findParent = __webpack_require__(1).findParent;
+var State = __webpack_require__(6).State;
 __webpack_require__(238);
 
 var Menu = function () {
@@ -19541,6 +19557,12 @@ var Menu = function () {
         applyToAllElements('li', function (el) {
             el.classList.remove('active', 'active-parent');
         }, '', menu_top);
+        if (Client.isLoggedIn()) {
+            applyToAllElements('.cr-only', function (el) {
+                var is_upgradable_to_cr = State.getResponse('authorize.upgradeable_landing_companies').indexOf('costarica') !== -1;
+                el.setVisibility(Client.hasCostaricaAccount() || is_upgradable_to_cr);
+            });
+        }
 
         var menu_top_item_for_page = Array.from(menu_top.getElementsByTagName('a')).find(function (link) {
             return !/invisible/.test(findParent(link, 'li').classList) && link.href !== 'javascript:;' && window.location.pathname.indexOf(link.pathname.replace(/\.html/, '')) >= 0 && link.target !== '_blank';
