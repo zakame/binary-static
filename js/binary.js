@@ -21714,7 +21714,7 @@ var PaymentAgentWithdraw = function () {
         if (pa_list.length > 0) {
             checkToken($ddl_agents, pa_list);
         } else {
-            showPageError(localize('The Payment Agent facility is currently not available in your country.'));
+            showPageError(localize('Payment Agent services are not available in your country or in your preferred currency.'));
         }
     };
 
@@ -30485,7 +30485,7 @@ var Markets = function (_React$Component) {
                             type: 'text',
                             maxLength: 20,
                             onInput: searchSymbols,
-                            placeholder: (0, _localize.localize)('"AUD/JPY" or "Apple"'),
+                            placeholder: (0, _localize.localize)('Search...'),
                             value: query
                         }),
                         _react2.default.createElement('span', { className: 'icon' })
