@@ -274,7 +274,7 @@ module.exports = Localize;
 
 
 var BinarySocket = __webpack_require__(5);
-var RealityCheckData = __webpack_require__(126);
+var RealityCheckData = __webpack_require__(127);
 var ClientBase = __webpack_require__(84);
 var SocketCache = __webpack_require__(74);
 var getElementById = __webpack_require__(4).getElementById;
@@ -815,7 +815,7 @@ module.exports = {
 "use strict";
 
 
-var CurrencyBase = __webpack_require__(157);
+var CurrencyBase = __webpack_require__(115);
 var localize = __webpack_require__(2).localize;
 
 var getCurrencyList = function getCurrencyList(currencies) {
@@ -1745,7 +1745,7 @@ var BinaryPjax = __webpack_require__(12);
 var Client = __webpack_require__(3);
 var BinarySocket = __webpack_require__(5);
 var checkClientsCountry = __webpack_require__(165).checkClientsCountry;
-var MetaTrader = __webpack_require__(125);
+var MetaTrader = __webpack_require__(126);
 var GTM = __webpack_require__(54);
 var Login = __webpack_require__(55);
 var SocketCache = __webpack_require__(74);
@@ -2178,7 +2178,7 @@ var Tick = __webpack_require__(60);
 var contractsElement = __webpack_require__(283);
 var marketsElement = __webpack_require__(286);
 var formatMoney = __webpack_require__(7).formatMoney;
-var ActiveSymbols = __webpack_require__(116);
+var ActiveSymbols = __webpack_require__(117);
 var elementInnerHtml = __webpack_require__(4).elementInnerHtml;
 var getElementById = __webpack_require__(4).getElementById;
 var localize = __webpack_require__(2).localize;
@@ -4223,7 +4223,7 @@ module.exports = SocketCache;
 "use strict";
 
 
-var showPopup = __webpack_require__(118);
+var showPopup = __webpack_require__(119);
 var elementInnerHtml = __webpack_require__(4).elementInnerHtml;
 var localize = __webpack_require__(2).localize;
 var urlFor = __webpack_require__(8).urlFor;
@@ -4826,7 +4826,7 @@ module.exports = MBContract;
 "use strict";
 
 
-var ActiveSymbols = __webpack_require__(116);
+var ActiveSymbols = __webpack_require__(117);
 
 /*
  * Symbols object parses the active_symbols json that we get from socket.send({active_symbols: 'brief'}
@@ -4890,7 +4890,7 @@ module.exports = Symbols;
 
 
 var moment = __webpack_require__(9);
-var isCryptocurrency = __webpack_require__(157).isCryptocurrency;
+var isCryptocurrency = __webpack_require__(115).isCryptocurrency;
 var SocketCache = __webpack_require__(74);
 var LocalStore = __webpack_require__(6).LocalStore;
 var State = __webpack_require__(6).State;
@@ -5672,10 +5672,10 @@ module.exports = TradingAnalysis;
 var _slicedToArray = function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"]) _i["return"](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } }; }();
 
 var moment = __webpack_require__(9);
-var ViewPopupUI = __webpack_require__(127);
+var ViewPopupUI = __webpack_require__(128);
 var Highchart = __webpack_require__(281);
 var Lookback = __webpack_require__(59);
-var TickDisplay = __webpack_require__(123);
+var TickDisplay = __webpack_require__(124);
 var isJPClient = __webpack_require__(3).isJPClient;
 var Clock = __webpack_require__(26);
 var BinarySocket = __webpack_require__(5);
@@ -7248,16 +7248,16 @@ module.exports = WebtraderChart;
 "use strict";
 
 
-var Barriers = __webpack_require__(121);
+var Barriers = __webpack_require__(122);
 var updateWarmChart = __webpack_require__(31).updateWarmChart;
 var DigitInfo = __webpack_require__(280);
 var Defaults = __webpack_require__(23);
 var getActiveTab = __webpack_require__(171).getActiveTab;
 var Purchase = __webpack_require__(174);
 var Tick = __webpack_require__(60);
-var TickDisplay = __webpack_require__(123);
+var TickDisplay = __webpack_require__(124);
 var MBDefaults = __webpack_require__(36);
-var MBTick = __webpack_require__(120);
+var MBTick = __webpack_require__(121);
 var BinarySocket = __webpack_require__(5);
 var State = __webpack_require__(6).State;
 
@@ -7754,6 +7754,129 @@ module.exports = Price;
 "use strict";
 
 
+var getLanguage = __webpack_require__(16).get;
+var localize = __webpack_require__(2).localize;
+var State = __webpack_require__(6).State;
+var getPropertyValue = __webpack_require__(1).getPropertyValue;
+
+var currencies_config = {};
+
+var formatMoney = function formatMoney(currency_value, amount, exclude_currency) {
+    var decimals = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : 0;
+    var minimumFractionDigits = arguments.length > 4 && arguments[4] !== undefined ? arguments[4] : 0;
+
+    var money = amount;
+    if (money) money = String(money).replace(/,/g, '');
+    var sign = money && Number(money) < 0 ? '-' : '';
+    var decimal_places = decimals || getDecimalPlaces(currency_value);
+
+    money = isNaN(money) ? 0 : Math.abs(money);
+    if (typeof Intl !== 'undefined') {
+        var options = {
+            minimumFractionDigits: minimumFractionDigits || decimal_places,
+            maximumFractionDigits: decimal_places
+        };
+        money = new Intl.NumberFormat(getLanguage().toLowerCase().replace('_', '-'), options).format(money);
+    } else {
+        money = addComma(money, decimal_places);
+    }
+
+    return sign + (exclude_currency ? '' : formatCurrency(currency_value)) + money;
+};
+
+var formatCurrency = function formatCurrency(currency) {
+    return '<span class="symbols ' + (currency || '').toLowerCase() + '"></span>';
+}; // defined in binary-style
+
+var addComma = function addComma(num, decimal_points, is_crypto) {
+    var number = String(num || 0).replace(/,/g, '');
+    if (typeof decimal_points !== 'undefined') {
+        number = (+number).toFixed(decimal_points);
+    }
+    if (is_crypto) {
+        number = parseFloat(+number);
+    }
+
+    return number.toString().replace(/(^|[^\w.])(\d{4,})/g, function ($0, $1, $2) {
+        return $1 + $2.replace(/\d(?=(?:\d\d\d)+(?!\d))/g, '$&,');
+    });
+};
+
+var isJPClient = function isJPClient() {
+    return !!State.get('is_jp_client');
+};
+
+var getFiatDecimalPlaces = function getFiatDecimalPlaces() {
+    return isJPClient() ? 0 : 2;
+};
+
+var calcDecimalPlaces = function calcDecimalPlaces(currency) {
+    return isCryptocurrency(currency) ? 8 : getFiatDecimalPlaces();
+};
+
+var getDecimalPlaces = function getDecimalPlaces(currency) {
+    return (
+        // need to check currencies_config[currency] exists instead of || in case of 0 value
+        currencies_config[currency] ? getPropertyValue(currencies_config, [currency, 'fractional_digits']) : calcDecimalPlaces(currency)
+    );
+};
+
+var setCurrencies = function setCurrencies(website_status) {
+    currencies_config = website_status.currencies_config;
+};
+
+var isCryptocurrency = function isCryptocurrency(currency) {
+    return (/crypto/i.test(getPropertyValue(currencies_config, [currency, 'type']))
+    );
+};
+
+var crypto_config = {
+    BTC: { name: 'Bitcoin', min_withdrawal: 0.002 },
+    BCH: { name: 'Bitcoin Cash', min_withdrawal: 0.002 },
+    ETH: { name: 'Ether', min_withdrawal: 0.002 },
+    ETC: { name: 'Ether Classic', min_withdrawal: 0.002 },
+    LTC: { name: 'Litecoin', min_withdrawal: 0.002 },
+    DAI: { name: 'Dai', min_withdrawal: 0.002 }
+};
+
+var getMinWithdrawal = function getMinWithdrawal(currency) {
+    return isCryptocurrency(currency) ? getPropertyValue(crypto_config, [currency, 'min_withdrawal']) || 0.002 : 1;
+};
+
+var getCurrencyName = function getCurrencyName(currency) {
+    return localize(getPropertyValue(crypto_config, [currency, 'name']) || '');
+};
+
+var getFiatPayout = function getFiatPayout() {
+    return isJPClient() ? 1 : 10;
+};
+
+var getMinPayout = function getMinPayout(currency) {
+    return isCryptocurrency(currency) ? getPropertyValue(currencies_config, [currency, 'stake_default']) : getFiatPayout();
+};
+
+module.exports = {
+    formatMoney: formatMoney,
+    formatCurrency: formatCurrency,
+    addComma: addComma,
+    getDecimalPlaces: getDecimalPlaces,
+    setCurrencies: setCurrencies,
+    isCryptocurrency: isCryptocurrency,
+    getCurrencyName: getCurrencyName,
+    getMinWithdrawal: getMinWithdrawal,
+    getMinPayout: getMinPayout,
+    getCurrencies: function getCurrencies() {
+        return currencies_config;
+    }
+};
+
+/***/ }),
+/* 116 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
 var SelectMatcher = __webpack_require__(25).select2Matcher;
 var Cookies = __webpack_require__(50);
 var generateBirthDate = __webpack_require__(163);
@@ -7878,6 +8001,11 @@ var AccountOpening = function () {
                 if (client_state) {
                     $address_state.val(client_state);
                 }
+                $address_state.select2({
+                    matcher: function matcher(params, data) {
+                        return SelectMatcher(params, data);
+                    }
+                });
             } else {
                 $address_state.replaceWith($('<input/>', { id: 'address_state', name: 'address_state', type: 'text', maxlength: '35' }));
                 $address_state = $(address_state_id);
@@ -7886,11 +8014,6 @@ var AccountOpening = function () {
                 }
             }
             $address_state.parent().parent().setVisibility(1);
-            $address_state.select2({
-                matcher: function matcher(params, data) {
-                    return SelectMatcher(params, data);
-                }
-            });
 
             if (form_id && typeof getValidations === 'function') {
                 FormManager.init(form_id, getValidations());
@@ -7958,7 +8081,7 @@ var AccountOpening = function () {
 module.exports = AccountOpening;
 
 /***/ }),
-/* 116 */
+/* 117 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -8125,7 +8248,7 @@ var ActiveSymbols = function () {
 module.exports = ActiveSymbols;
 
 /***/ }),
-/* 117 */
+/* 118 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -8200,7 +8323,7 @@ var FlexTableUI = function () {
 module.exports = FlexTableUI;
 
 /***/ }),
-/* 118 */
+/* 119 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -8263,7 +8386,7 @@ var callback = function callback(options) {
 module.exports = showPopup;
 
 /***/ }),
-/* 119 */
+/* 120 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -8622,7 +8745,7 @@ var MBPrice = function () {
 module.exports = MBPrice;
 
 /***/ }),
-/* 120 */
+/* 121 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -8745,7 +8868,7 @@ var MBTick = function () {
 module.exports = MBTick;
 
 /***/ }),
-/* 121 */
+/* 122 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -8928,7 +9051,7 @@ var Barriers = function () {
 module.exports = Barriers;
 
 /***/ }),
-/* 122 */
+/* 123 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -8936,7 +9059,7 @@ module.exports = Barriers;
 
 var Dropdown = __webpack_require__(25).selectDropdown;
 var moment = __webpack_require__(9);
-var Barriers = __webpack_require__(121);
+var Barriers = __webpack_require__(122);
 var commonTrading = __webpack_require__(31);
 var commonIndependent = __webpack_require__(47);
 var Contract = __webpack_require__(58);
@@ -9596,7 +9719,7 @@ var Durations = function () {
 module.exports = Durations;
 
 /***/ }),
-/* 123 */
+/* 124 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -9605,8 +9728,9 @@ module.exports = Durations;
 var moment = __webpack_require__(9);
 var requireHighstock = __webpack_require__(31).requireHighstock;
 var Tick = __webpack_require__(60);
-var ViewPopupUI = __webpack_require__(127);
+var ViewPopupUI = __webpack_require__(128);
 var BinarySocket = __webpack_require__(5);
+var addComma = __webpack_require__(115).addComma;
 var CommonFunctions = __webpack_require__(4);
 var localize = __webpack_require__(2).localize;
 
@@ -9800,7 +9924,7 @@ var TickDisplay = function () {
             chart.yAxis[0].addPlotLine({
                 id: 'tick-barrier',
                 value: barrier_quote,
-                label: { text: 'Barrier (' + barrier_quote + ')', align: 'center' },
+                label: { text: 'Barrier (' + addComma(barrier_quote) + ')', align: 'center' },
                 color: 'green',
                 width: 2,
                 zIndex: 2
@@ -9823,7 +9947,7 @@ var TickDisplay = function () {
                 value: calc_barrier,
                 color: 'green',
                 label: {
-                    text: 'Average (' + calc_barrier + ')',
+                    text: 'Average (' + addComma(calc_barrier) + ')',
                     align: 'center'
                 },
                 width: 2,
@@ -9942,7 +10066,7 @@ var TickDisplay = function () {
                     spots_list[tick.epoch] = tick.quote;
                     var indicator_key = '_' + counter;
 
-                    if (contract_category === 'touchnotouch' && tick.epoch === sell_spot_time) {
+                    if (!x_indicators[indicator_key] && tick.epoch === sell_spot_time) {
                         x_indicators[indicator_key] = {
                             index: counter,
                             label: sell_spot_time === exit_tick_time ? 'Exit Spot' : 'Sell Spot',
@@ -9963,27 +10087,36 @@ var TickDisplay = function () {
         }
     };
 
+    var addSellSpot = function addSellSpot(contract) {
+        if (!applicable_ticks) return;
+
+        sell_spot_time = +contract.sell_spot_time;
+        exit_tick_time = +contract.exit_tick_time;
+
+        var index = applicable_ticks.findIndex(function (_ref2) {
+            var epoch = _ref2.epoch;
+            return epoch === sell_spot_time;
+        });
+
+        if (index === -1) return;
+
+        var indicator_key = '_' + index;
+
+        if (x_indicators[indicator_key]) return;
+
+        x_indicators[indicator_key] = {
+            index: index,
+            label: sell_spot_time === exit_tick_time ? 'Exit Spot' : 'Sell Spot',
+            dashStyle: 'Dash'
+        };
+
+        add(x_indicators[indicator_key]);
+    };
+
     var updateChart = function updateChart(data, contract) {
         subscribe = 'false';
-        if (contract_category === 'touchnotouch' && data.is_sold && applicable_ticks) {
-            sell_spot_time = +contract.sell_spot_time;
-            exit_tick_time = +contract.exit_tick_time;
-
-            var index = applicable_ticks.findIndex(function (_ref2) {
-                var epoch = _ref2.epoch;
-                return epoch === sell_spot_time;
-            });
-
-            if (index >= 0) {
-                var indicator_key = '_' + index;
-
-                x_indicators[indicator_key] = {
-                    index: index,
-                    label: sell_spot_time === exit_tick_time ? 'Exit Spot' : 'Sell Spot',
-                    dashStyle: 'Dash'
-                };
-                add(x_indicators[indicator_key]);
-            }
+        if (data.is_sold) {
+            addSellSpot(contract);
         } else if (contract) {
             tick_underlying = contract.underlying;
             tick_count = contract.tick_count;
@@ -10003,8 +10136,8 @@ var TickDisplay = function () {
             if (contract.current_spot_time < contract.date_expiry) {
                 request.subscribe = 1;
                 subscribe = 'true';
-            } else if (+contract.sell_spot_time < contract.date_expiry) {
-                request.end = contract.sell_spot_time;
+            } else if (sell_spot_time && sell_spot_time < contract.date_expiry) {
+                request.end = sell_spot_time;
             } else {
                 request.end = contract.date_expiry;
             }
@@ -10026,7 +10159,7 @@ var TickDisplay = function () {
 module.exports = TickDisplay;
 
 /***/ }),
-/* 124 */
+/* 125 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -10259,7 +10392,7 @@ var PortfolioInit = function () {
 module.exports = PortfolioInit;
 
 /***/ }),
-/* 125 */
+/* 126 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -10487,7 +10620,7 @@ var MetaTrader = function () {
 module.exports = MetaTrader;
 
 /***/ }),
-/* 126 */
+/* 127 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -10578,7 +10711,7 @@ var RealityCheckData = function () {
 module.exports = RealityCheckData;
 
 /***/ }),
-/* 127 */
+/* 128 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -10792,7 +10925,6 @@ var ViewPopupUI = function () {
 module.exports = ViewPopupUI;
 
 /***/ }),
-/* 128 */,
 /* 129 */,
 /* 130 */,
 /* 131 */,
@@ -10821,129 +10953,7 @@ module.exports = ViewPopupUI;
 /* 154 */,
 /* 155 */,
 /* 156 */,
-/* 157 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-
-var getLanguage = __webpack_require__(16).get;
-var localize = __webpack_require__(2).localize;
-var State = __webpack_require__(6).State;
-var getPropertyValue = __webpack_require__(1).getPropertyValue;
-
-var currencies_config = {};
-
-var formatMoney = function formatMoney(currency_value, amount, exclude_currency) {
-    var decimals = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : 0;
-    var minimumFractionDigits = arguments.length > 4 && arguments[4] !== undefined ? arguments[4] : 0;
-
-    var money = amount;
-    if (money) money = String(money).replace(/,/g, '');
-    var sign = money && Number(money) < 0 ? '-' : '';
-    var decimal_places = decimals || getDecimalPlaces(currency_value);
-
-    money = isNaN(money) ? 0 : Math.abs(money);
-    if (typeof Intl !== 'undefined') {
-        var options = {
-            minimumFractionDigits: minimumFractionDigits || decimal_places,
-            maximumFractionDigits: decimal_places
-        };
-        money = new Intl.NumberFormat(getLanguage().toLowerCase().replace('_', '-'), options).format(money);
-    } else {
-        money = addComma(money, decimal_places);
-    }
-
-    return sign + (exclude_currency ? '' : formatCurrency(currency_value)) + money;
-};
-
-var formatCurrency = function formatCurrency(currency) {
-    return '<span class="symbols ' + (currency || '').toLowerCase() + '"></span>';
-}; // defined in binary-style
-
-var addComma = function addComma(num, decimal_points, is_crypto) {
-    var number = String(num || 0).replace(/,/g, '');
-    if (typeof decimal_points !== 'undefined') {
-        number = (+number).toFixed(decimal_points);
-    }
-    if (is_crypto) {
-        number = parseFloat(+number);
-    }
-
-    return number.toString().replace(/(^|[^\w.])(\d{4,})/g, function ($0, $1, $2) {
-        return $1 + $2.replace(/\d(?=(?:\d\d\d)+(?!\d))/g, '$&,');
-    });
-};
-
-var isJPClient = function isJPClient() {
-    return !!State.get('is_jp_client');
-};
-
-var getFiatDecimalPlaces = function getFiatDecimalPlaces() {
-    return isJPClient() ? 0 : 2;
-};
-
-var calcDecimalPlaces = function calcDecimalPlaces(currency) {
-    return isCryptocurrency(currency) ? 8 : getFiatDecimalPlaces();
-};
-
-var getDecimalPlaces = function getDecimalPlaces(currency) {
-    return (
-        // need to check currencies_config[currency] exists instead of || in case of 0 value
-        currencies_config[currency] ? getPropertyValue(currencies_config, [currency, 'fractional_digits']) : calcDecimalPlaces(currency)
-    );
-};
-
-var setCurrencies = function setCurrencies(website_status) {
-    currencies_config = website_status.currencies_config;
-};
-
-var isCryptocurrency = function isCryptocurrency(currency) {
-    return (/crypto/i.test(getPropertyValue(currencies_config, [currency, 'type']))
-    );
-};
-
-var crypto_config = {
-    BTC: { name: 'Bitcoin', min_withdrawal: 0.002 },
-    BCH: { name: 'Bitcoin Cash', min_withdrawal: 0.002 },
-    ETH: { name: 'Ether', min_withdrawal: 0.002 },
-    ETC: { name: 'Ether Classic', min_withdrawal: 0.002 },
-    LTC: { name: 'Litecoin', min_withdrawal: 0.002 },
-    DAI: { name: 'Dai', min_withdrawal: 0.002 }
-};
-
-var getMinWithdrawal = function getMinWithdrawal(currency) {
-    return isCryptocurrency(currency) ? getPropertyValue(crypto_config, [currency, 'min_withdrawal']) || 0.002 : 1;
-};
-
-var getCurrencyName = function getCurrencyName(currency) {
-    return localize(getPropertyValue(crypto_config, [currency, 'name']) || '');
-};
-
-var getFiatPayout = function getFiatPayout() {
-    return isJPClient() ? 1 : 10;
-};
-
-var getMinPayout = function getMinPayout(currency) {
-    return isCryptocurrency(currency) ? getPropertyValue(currencies_config, [currency, 'stake_default']) : getFiatPayout();
-};
-
-module.exports = {
-    formatMoney: formatMoney,
-    formatCurrency: formatCurrency,
-    addComma: addComma,
-    getDecimalPlaces: getDecimalPlaces,
-    setCurrencies: setCurrencies,
-    isCryptocurrency: isCryptocurrency,
-    getCurrencyName: getCurrencyName,
-    getMinWithdrawal: getMinWithdrawal,
-    getMinPayout: getMinPayout,
-    getCurrencies: function getCurrencies() {
-        return currencies_config;
-    }
-};
-
-/***/ }),
+/* 157 */,
 /* 158 */
 /***/ (function(module, exports, __webpack_require__) {
 
@@ -11675,7 +11685,7 @@ module.exports = TimePicker;
 
 
 var Client = __webpack_require__(3);
-var PortfolioInit = __webpack_require__(124);
+var PortfolioInit = __webpack_require__(125);
 var State = __webpack_require__(6).State;
 
 var JapanPortfolio = function () {
@@ -11735,9 +11745,9 @@ module.exports = JapanPortfolio;
 var MBContract = __webpack_require__(77);
 var MBDefaults = __webpack_require__(36);
 var MBNotifications = __webpack_require__(94);
-var MBPrice = __webpack_require__(119);
+var MBPrice = __webpack_require__(120);
 var MBSymbols = __webpack_require__(273);
-var MBTick = __webpack_require__(120);
+var MBTick = __webpack_require__(121);
 var commonTrading = __webpack_require__(31);
 var BinaryPjax = __webpack_require__(12);
 var Client = __webpack_require__(3);
@@ -12238,7 +12248,7 @@ var TradingAnalysis = __webpack_require__(86);
 var commonTrading = __webpack_require__(31);
 var Contract = __webpack_require__(58);
 var Defaults = __webpack_require__(23);
-var Durations = __webpack_require__(122);
+var Durations = __webpack_require__(123);
 var GetTicks = __webpack_require__(96);
 var Lookback = __webpack_require__(59);
 var Notifications = __webpack_require__(172);
@@ -12531,7 +12541,7 @@ var getLookBackFormula = __webpack_require__(59).getFormula;
 var isLookback = __webpack_require__(59).isLookback;
 var Symbols = __webpack_require__(78);
 var Tick = __webpack_require__(60);
-var TickDisplay = __webpack_require__(123);
+var TickDisplay = __webpack_require__(124);
 var updateValues = __webpack_require__(175);
 var Client = __webpack_require__(3);
 var formatMoney = __webpack_require__(7).formatMoney;
@@ -13272,6 +13282,14 @@ var PersonalDetails = function () {
                     $field = $(address_state);
                 }
                 $field.val(get_settings_data.address_state);
+
+                if (states && states.length > 0) {
+                    $('#address_state').select2({
+                        matcher: function matcher(params, data) {
+                            return SelectMatcher(params, data);
+                        }
+                    });
+                }
             }
 
             if (is_jp_client && !is_virtual) {
@@ -13312,11 +13330,6 @@ var PersonalDetails = function () {
                             BinarySocket.send({ states_list: residence }).then(function (response_state) {
                                 populateStates(response_state).then(function () {
                                     getDetailsResponse(get_settings_data, response.residence_list);
-                                });
-                                $('#address_state').select2({
-                                    matcher: function matcher(params, data) {
-                                        return SelectMatcher(params, data);
-                                    }
                                 });
                             });
                         } else {
@@ -19617,7 +19630,7 @@ var TradePage = __webpack_require__(288);
 var Authenticate = __webpack_require__(289);
 var ChangePassword = __webpack_require__(290);
 var PaymentAgentTransfer = __webpack_require__(291);
-var Portfolio = __webpack_require__(124);
+var Portfolio = __webpack_require__(125);
 var ProfitTable = __webpack_require__(294);
 var Settings = __webpack_require__(297);
 var APIToken = __webpack_require__(298);
@@ -19633,7 +19646,7 @@ var Statement = __webpack_require__(309);
 var TopUpVirtual = __webpack_require__(312);
 var Accounts = __webpack_require__(313);
 var LostPassword = __webpack_require__(315);
-var MetaTrader = __webpack_require__(125);
+var MetaTrader = __webpack_require__(126);
 var FinancialAccOpening = __webpack_require__(317);
 var JapanAccOpening = __webpack_require__(318);
 var RealAccOpening = __webpack_require__(319);
@@ -20271,7 +20284,7 @@ var Footer = __webpack_require__(251);
 var Header = __webpack_require__(27);
 var BinarySocket = __webpack_require__(5);
 var Dialog = __webpack_require__(75);
-var showPopup = __webpack_require__(118);
+var showPopup = __webpack_require__(119);
 var setCurrencies = __webpack_require__(7).setCurrencies;
 var SessionDurationLimit = __webpack_require__(261);
 var updateBalance = __webpack_require__(327);
@@ -20492,7 +20505,7 @@ var Client = __webpack_require__(3);
 var BinarySocket = __webpack_require__(5);
 var State = __webpack_require__(6).State;
 var updateTabDisplay = __webpack_require__(93).updateTabDisplay;
-var MetaTrader = __webpack_require__(125);
+var MetaTrader = __webpack_require__(126);
 
 /*
     data-show attribute controls element visibility based on
@@ -21623,7 +21636,7 @@ var setShouldRedirect = __webpack_require__(176).setShouldRedirect;
 var BinaryPjax = __webpack_require__(12);
 var Client = __webpack_require__(3);
 var BinarySocket = __webpack_require__(5);
-var showPopup = __webpack_require__(118);
+var showPopup = __webpack_require__(119);
 var Currency = __webpack_require__(7);
 var FormManager = __webpack_require__(21);
 var validEmailToken = __webpack_require__(56).validEmailToken;
@@ -22268,9 +22281,9 @@ module.exports = MBDisplayCurrencies;
 var MBContract = __webpack_require__(77);
 var MBDefaults = __webpack_require__(36);
 var MBNotifications = __webpack_require__(94);
-var MBPrice = __webpack_require__(119);
+var MBPrice = __webpack_require__(120);
 var MBProcess = __webpack_require__(170);
-var MBTick = __webpack_require__(120);
+var MBTick = __webpack_require__(121);
 var TradingAnalysis = __webpack_require__(86);
 var debounce = __webpack_require__(31).debounce;
 var Client = __webpack_require__(3);
@@ -22564,7 +22577,7 @@ module.exports = MBTradingEvents;
 "use strict";
 
 
-var ActiveSymbols = __webpack_require__(116);
+var ActiveSymbols = __webpack_require__(117);
 
 /*
  * MBSymbols object parses the active_symbols json that we get from socket.send({active_symbols: 'brief'}
@@ -22632,7 +22645,7 @@ var MBContract = __webpack_require__(77);
 var MBDisplayCurrencies = __webpack_require__(271);
 var MBDefaults = __webpack_require__(36);
 var MBTradingEvents = __webpack_require__(272);
-var MBPrice = __webpack_require__(119);
+var MBPrice = __webpack_require__(120);
 var MBProcess = __webpack_require__(170);
 var cleanupChart = __webpack_require__(95).cleanupChart;
 var BinaryPjax = __webpack_require__(12);
@@ -23543,7 +23556,7 @@ var MBDefaults = __webpack_require__(36);
 var Defaults = __webpack_require__(23);
 var GetTicks = __webpack_require__(96);
 var Lookback = __webpack_require__(59);
-var ViewPopupUI = __webpack_require__(127);
+var ViewPopupUI = __webpack_require__(128);
 var isJPClient = __webpack_require__(3).isJPClient;
 var BinarySocket = __webpack_require__(5);
 var addComma = __webpack_require__(7).addComma;
@@ -24704,11 +24717,11 @@ module.exports = displayCurrencies;
 
 var moment = __webpack_require__(9);
 var TradingAnalysis = __webpack_require__(86);
-var Barriers = __webpack_require__(121);
+var Barriers = __webpack_require__(122);
 var CommonTrading = __webpack_require__(31);
 var CommonIndependent = __webpack_require__(47);
 var Defaults = __webpack_require__(23);
-var Durations = __webpack_require__(122);
+var Durations = __webpack_require__(123);
 var GetTicks = __webpack_require__(96);
 var Notifications = __webpack_require__(172);
 var Price = __webpack_require__(97);
@@ -25744,7 +25757,7 @@ var moment = __webpack_require__(9);
 var CommonIndependent = __webpack_require__(47);
 var Contract = __webpack_require__(58);
 var Defaults = __webpack_require__(23);
-var Durations = __webpack_require__(122);
+var Durations = __webpack_require__(123);
 var getElementById = __webpack_require__(4).getElementById;
 var localize = __webpack_require__(2).localize;
 var State = __webpack_require__(6).State;
@@ -27039,7 +27052,7 @@ var isJPClient = __webpack_require__(3).isJPClient;
 var showLocalTimeOnHover = __webpack_require__(26).showLocalTimeOnHover;
 var BinarySocket = __webpack_require__(5);
 var Dialog = __webpack_require__(75);
-var FlexTableUI = __webpack_require__(117);
+var FlexTableUI = __webpack_require__(118);
 var FormManager = __webpack_require__(21);
 var localize = __webpack_require__(2).localize;
 var toTitleCase = __webpack_require__(17).toTitleCase;
@@ -27206,7 +27219,7 @@ var Client = __webpack_require__(3);
 var showLocalTimeOnHover = __webpack_require__(26).showLocalTimeOnHover;
 var BinarySocket = __webpack_require__(5);
 var Dialog = __webpack_require__(75);
-var FlexTableUI = __webpack_require__(117);
+var FlexTableUI = __webpack_require__(118);
 var elementTextContent = __webpack_require__(4).elementTextContent;
 var localize = __webpack_require__(2).localize;
 var State = __webpack_require__(6).State;
@@ -27622,7 +27635,7 @@ module.exports = IPHistory;
 
 var moment = __webpack_require__(9);
 var showLocalTimeOnHover = __webpack_require__(26).showLocalTimeOnHover;
-var FlexTableUI = __webpack_require__(117);
+var FlexTableUI = __webpack_require__(118);
 var localize = __webpack_require__(2).localize;
 
 var IPHistoryUI = function () {
@@ -29548,7 +29561,7 @@ var moment = __webpack_require__(9);
 var BinaryPjax = __webpack_require__(12);
 var Client = __webpack_require__(3);
 var BinarySocket = __webpack_require__(5);
-var AccountOpening = __webpack_require__(115);
+var AccountOpening = __webpack_require__(116);
 var FormManager = __webpack_require__(21);
 var localize = __webpack_require__(2).localize;
 var isEmptyObject = __webpack_require__(1).isEmptyObject;
@@ -29656,7 +29669,7 @@ module.exports = FinancialAccOpening;
 
 var BinaryPjax = __webpack_require__(12);
 var Client = __webpack_require__(3);
-var AccountOpening = __webpack_require__(115);
+var AccountOpening = __webpack_require__(116);
 var FormManager = __webpack_require__(21);
 var detectHedging = __webpack_require__(4).detectHedging;
 
@@ -29702,7 +29715,7 @@ module.exports = JapanAccOpening;
 var BinaryPjax = __webpack_require__(12);
 var Client = __webpack_require__(3);
 var BinarySocket = __webpack_require__(5);
-var AccountOpening = __webpack_require__(115);
+var AccountOpening = __webpack_require__(116);
 var FormManager = __webpack_require__(21);
 var State = __webpack_require__(6).State;
 
@@ -29978,7 +29991,7 @@ module.exports = WelcomePage;
 "use strict";
 
 
-var RealityCheckData = __webpack_require__(126);
+var RealityCheckData = __webpack_require__(127);
 var RealityCheckUI = __webpack_require__(323);
 var Client = __webpack_require__(3);
 var BinarySocket = __webpack_require__(5);
@@ -30028,7 +30041,7 @@ module.exports = RealityCheck;
 "use strict";
 
 
-var RealityCheckData = __webpack_require__(126);
+var RealityCheckData = __webpack_require__(127);
 var showLocalTimeOnHover = __webpack_require__(26).showLocalTimeOnHover;
 var BinarySocket = __webpack_require__(5);
 var FormManager = __webpack_require__(21);
@@ -30408,7 +30421,7 @@ module.exports = TelegramBot;
 "use strict";
 
 
-var PortfolioInit = __webpack_require__(124);
+var PortfolioInit = __webpack_require__(125);
 var updateContractBalance = __webpack_require__(175).updateContractBalance;
 var Client = __webpack_require__(3);
 var BinarySocket = __webpack_require__(5);
