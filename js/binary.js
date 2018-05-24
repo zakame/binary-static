@@ -398,13 +398,6 @@ var Client = function () {
         return State.get('is_jp_client');
     };
 
-    var getRiskAssessment = function getRiskAssessment() {
-        var status = State.getResponse('get_account_status.status');
-        var is_high_risk = /high/.test(State.getResponse('get_account_status.risk_classification'));
-
-        return is_high_risk && (ClientBase.isAccountOfType('financial') ? /(financial_assessment|trading_experience)_not_complete/.test(status) : /financial_assessment_not_complete/.test(status));
-    };
-
     return Object.assign({
         processNewAccount: processNewAccount,
         activateByClientType: activateByClientType,
@@ -413,8 +406,7 @@ var Client = function () {
         getUpgradeInfo: getUpgradeInfo,
         defaultRedirectUrl: defaultRedirectUrl,
         setJPFlag: setJPFlag,
-        isJPClient: isJPClient,
-        getRiskAssessment: getRiskAssessment
+        isJPClient: isJPClient
     }, ClientBase);
 }();
 
@@ -5159,6 +5151,13 @@ var ClientBase = function () {
         return (landing_company_object || {})[key];
     };
 
+    var getRiskAssessment = function getRiskAssessment() {
+        var status = State.getResponse('get_account_status.status');
+        var is_high_risk = /high/.test(State.getResponse('get_account_status.risk_classification'));
+
+        return isAccountOfType('financial') ? /(financial_assessment|trading_experience)_not_complete/.test(status) : is_high_risk && /financial_assessment_not_complete/.test(status);
+    };
+
     // API_V3: send a list of accounts the client can transfer to
     var canTransferFunds = function canTransferFunds(account) {
         if (account) {
@@ -5228,6 +5227,7 @@ var ClientBase = function () {
         getMT5AccountType: getMT5AccountType,
         getBasicUpgradeInfo: getBasicUpgradeInfo,
         getLandingCompanyValue: getLandingCompanyValue,
+        getRiskAssessment: getRiskAssessment,
         canTransferFunds: canTransferFunds,
         hasCostaricaAccount: hasCostaricaAccount
     };
@@ -5698,7 +5698,7 @@ var ViewPopup = function () {
         contract = void 0,
         is_sold = void 0,
         is_sell_clicked = void 0,
-        is_user_sold = void 0,
+        is_sold_before_expiry = void 0,
         chart_started = void 0,
         chart_init = void 0,
         chart_updated = void 0,
@@ -5718,7 +5718,7 @@ var ViewPopup = function () {
         contract = {};
         is_sold = false;
         is_sell_clicked = false;
-        is_user_sold = false;
+        is_sold_before_expiry = false;
         chart_started = false;
         chart_init = false;
         chart_updated = false;
@@ -5812,17 +5812,18 @@ var ViewPopup = function () {
     };
 
     var update = function update() {
+        var is_touch_tick = /touch/i.test(contract.contract_type) && contract.tick_count;
+        is_sold_before_expiry = is_touch_tick ? contract.sell_spot_time && +contract.sell_spot_time < contract.date_expiry : contract.sell_time && contract.sell_time < contract.date_expiry;
+
         var final_price = contract.sell_price || contract.bid_price;
         var is_started = !contract.is_forward_starting || contract.current_spot_time > contract.date_start;
-        var is_ended = contract.is_settleable || contract.is_sold || is_user_sold;
+        var is_ended = contract.is_settleable || contract.is_sold || is_sold_before_expiry;
         var indicative_price = final_price && is_ended ? final_price : contract.bid_price || null;
-        var sold_before_start = contract.sell_time && contract.sell_time < contract.date_start;
-        var is_touch_tick = /touch/i.test(contract.contract_type) && contract.tick_count;
-        is_user_sold = is_touch_tick ? contract.sell_spot_time && +contract.sell_spot_time < contract.date_expiry : contract.sell_time && contract.sell_time < contract.date_expiry;
+        var is_sold_before_start = contract.sell_time && contract.sell_time < contract.date_start;
 
         if (contract.barrier_count > 1) {
-            containerSetText('trade_details_barrier', sold_before_start ? '-' : addComma(contract.high_barrier), '', true);
-            containerSetText('trade_details_barrier_low', sold_before_start ? '-' : addComma(contract.low_barrier), '', true);
+            containerSetText('trade_details_barrier', is_sold_before_start ? '-' : addComma(contract.high_barrier), '', true);
+            containerSetText('trade_details_barrier_low', is_sold_before_start ? '-' : addComma(contract.low_barrier), '', true);
         } else if (contract.barrier) {
             var formatted_barrier = addComma(contract.barrier);
             var mapping = {
@@ -5832,14 +5833,14 @@ var ViewPopup = function () {
             var contract_text = mapping[contract.contract_type];
             var barrier_prefix = contract_text ? localize(contract_text) + ' ' : '';
             // only show entry spot if available and contract was not sold before start time
-            containerSetText('trade_details_barrier', contract.entry_tick_time && sold_before_start ? '-' : barrier_prefix + formatted_barrier, '', true);
+            containerSetText('trade_details_barrier', contract.entry_tick_time && is_sold_before_start ? '-' : barrier_prefix + formatted_barrier, '', true);
         }
 
         var current_spot = contract.current_spot;
         var current_spot_time = contract.current_spot_time;
         if (is_ended) {
-            current_spot = is_user_sold ? '' : contract.exit_tick;
-            current_spot_time = is_user_sold ? '' : contract.exit_tick_time;
+            current_spot = is_sold_before_expiry ? '' : contract.exit_tick;
+            current_spot_time = is_sold_before_expiry ? '' : contract.exit_tick_time;
         }
 
         if (current_spot) {
@@ -5878,7 +5879,7 @@ var ViewPopup = function () {
         } else {
             if (contract.entry_spot > 0) {
                 // only show entry spot if available and contract was not sold before start time
-                containerSetText('trade_details_entry_spot > span', sold_before_start ? '-' : addComma(contract.entry_spot));
+                containerSetText('trade_details_entry_spot > span', is_sold_before_start ? '-' : addComma(contract.entry_spot));
             }
             containerSetText('trade_details_message', contract.validation_error ? contract.validation_error : '&nbsp;');
         }
@@ -5897,7 +5898,7 @@ var ViewPopup = function () {
             chart_updated = true;
         }
 
-        if (!is_sold && is_user_sold) {
+        if (!is_sold && is_sold_before_expiry) {
             is_sold = true;
             if (!contract.tick_count) Highchart.showChart(contract, 'update');else TickDisplay.updateChart({ is_sold: true }, contract);
         }
@@ -6156,7 +6157,7 @@ var ViewPopup = function () {
                 contract_starts.div.remove();
             }
             // don't show exit tick information if missing or manual sold
-            if (contract.exit_tick_time && !is_user_sold
+            if (contract.exit_tick_time && !is_sold_before_expiry
             // Hide audit table for Lookback.
             && !/^(LBHIGHLOW|LBFLOATPUT|LBFLOATCALL)/.test(contract.shortcode)) {
                 var contract_ends = createAuditTable('Ends');
@@ -9862,6 +9863,9 @@ var TickDisplay = function () {
     };
 
     var initializeChart = function initializeChart(config, data) {
+        Highcharts.setOptions({
+            lang: { thousandsSep: ',' }
+        });
         chart = new Highcharts.Chart({
             chart: {
                 type: 'line',
@@ -9875,7 +9879,7 @@ var TickDisplay = function () {
             credits: { enabled: false },
             tooltip: {
                 formatter: function formatter() {
-                    var new_y = this.y.toFixed(display_decimals);
+                    var new_y = addComma(this.y.toFixed(display_decimals));
                     var mom = moment.utc(applicable_ticks[this.x].epoch * 1000).format('dddd, MMM D, HH:mm:ss');
                     return mom + '<br/>' + display_symbol + ' ' + new_y;
                 }
@@ -9890,7 +9894,10 @@ var TickDisplay = function () {
                 opposite: false,
                 labels: {
                     align: 'left',
-                    x: 0
+                    x: 0,
+                    formatter: function formatter() {
+                        return addComma(this.value.toFixed(display_decimals));
+                    }
                 },
                 title: ''
             },
@@ -9900,9 +9907,6 @@ var TickDisplay = function () {
             title: '',
             exporting: { enabled: false, enableImages: false },
             legend: { enabled: false }
-        });
-        Highcharts.setOptions({
-            lang: { thousandsSep: ',' }
         });
         if (data) {
             dispatch(data);
@@ -13565,9 +13569,9 @@ var urlFor = __webpack_require__(8).urlFor;
 var MetaTraderConfig = function () {
     var mt_companies = {
         financial: {
-            standard: { mt5_account_type: 'standard', max_leverage: 500, title: 'Standard' },
-            advanced: { mt5_account_type: 'advanced', max_leverage: 100, title: 'Advanced' },
-            mamm: { mt5_account_type: 'mamm_advanced', max_leverage: 100, title: 'MAM Advanced', is_real_only: 1 }
+            standard: { mt5_account_type: 'standard', max_leverage: 1000, title: 'Standard' },
+            advanced: { mt5_account_type: 'advanced', max_leverage: 300, title: 'Advanced' },
+            mamm: { mt5_account_type: 'mamm_advanced', max_leverage: 300, title: 'MAM Advanced', is_real_only: 1 }
         },
         gaming: {
             volatility: { mt5_account_type: '', max_leverage: 500, title: 'Volatility Indices' },
@@ -23755,7 +23759,7 @@ var Highchart = function () {
             decimals: history ? history.prices[0] : candles[0].open,
             entry_time: entry_tick_time ? entry_tick_time * 1000 : start_time * 1000,
             exit_time: exit_time ? exit_time * 1000 : null,
-            user_sold: userSold()
+            user_sold: isSoldBeforeExpiry()
         });
         return getHighstock(function (Highcharts) {
             Highcharts.setOptions(HighchartUI.getHighchartOptions(is_jp_client));
@@ -23770,7 +23774,7 @@ var Highchart = function () {
     // type 'y' is used to draw lines such as barrier
     var addPlotLine = function addPlotLine(params, type) {
         chart[type + 'Axis'][0].addPlotLine(HighchartUI.getPlotlineOptions(params, type));
-        if (userSold()) {
+        if (isSoldBeforeExpiry()) {
             HighchartUI.replaceExitLabelWithSell(chart.subtitle.element);
         }
     };
@@ -23976,7 +23980,7 @@ var Highchart = function () {
     };
 
     var updateZone = function updateZone(type) {
-        if (chart && type && !userSold()) {
+        if (chart && type && !isSoldBeforeExpiry()) {
             var value = type === 'entry' ? entry_tick_time : exit_time;
             chart.series[0].zones[type === 'entry' ? 0 : 1].value = value * 1000;
         }
@@ -24159,7 +24163,7 @@ var Highchart = function () {
     var endContract = function endContract() {
         if (chart && !stop_streaming) {
             drawLineX({
-                value: userSold() ? sell_time : end_time,
+                value: isSoldBeforeExpiry() ? sell_time : end_time,
                 text_left: 'textLeft',
                 dash_style: 'Dash'
             });
@@ -24192,7 +24196,7 @@ var Highchart = function () {
                     stop_streaming = true;
                 } else {
                     // add a null point if the last tick is before end time to bring end time line into view
-                    var time = userSold() ? sell_time || sell_spot_time : end_time;
+                    var time = isSoldBeforeExpiry() ? sell_time || sell_spot_time : end_time;
                     chart.series[0].addPoint({ x: ((time || window.time.unix()) + margin) * 1000, y: null });
                 }
             }
@@ -24252,7 +24256,7 @@ var Highchart = function () {
         }
     };
 
-    var userSold = function userSold() {
+    var isSoldBeforeExpiry = function isSoldBeforeExpiry() {
         return sell_time && sell_time < end_time || !sell_time && sell_spot_time && sell_spot_time < end_time;
     };
 
@@ -24270,6 +24274,7 @@ module.exports = Highchart;
 "use strict";
 
 
+var addComma = __webpack_require__(7).addComma;
 var localize = __webpack_require__(2).localize;
 
 var HighchartUI = function () {
@@ -24309,6 +24314,7 @@ var HighchartUI = function () {
     };
 
     var setChartOptions = function setChartOptions(params) {
+        var display_decimals = params.decimals.split('.')[1].length || 3;
         chart_options = {
             chart: {
                 backgroundColor: null, /* make background transparent */
@@ -24325,7 +24331,7 @@ var HighchartUI = function () {
             credits: { enabled: false },
             tooltip: {
                 xDateFormat: params.is_jp_client ? '%Y/%m/%d, %H:%M:%S' : '%A, %b %e, %H:%M:%S GMT',
-                valueDecimals: params.decimals.split('.')[1].length || 3
+                valueDecimals: display_decimals
             },
             subtitle: {
                 text: txt,
@@ -24336,7 +24342,12 @@ var HighchartUI = function () {
             },
             yAxis: {
                 opposite: false,
-                labels: { align: 'left' }
+                labels: {
+                    align: 'left',
+                    formatter: function formatter() {
+                        return addComma(this.value.toFixed(display_decimals));
+                    }
+                }
             },
             series: [{
                 type: params.type,
@@ -29844,6 +29855,7 @@ var LocalStore = __webpack_require__(6).LocalStore;
 var State = __webpack_require__(6).State;
 var urlFor = __webpack_require__(8).urlFor;
 var getPropertyValue = __webpack_require__(1).getPropertyValue;
+var isEmptyObject = __webpack_require__(1).isEmptyObject;
 
 var VirtualAccOpening = function () {
     var form = '#virtual-form';
@@ -29856,9 +29868,8 @@ var VirtualAccOpening = function () {
         BinarySocket.send({ residence_list: 1 }).then(function (response) {
             return handleResidenceList(response.residence_list);
         });
-        $('#residence').setVisibility(1);
-        bindValidation();
 
+        bindValidation();
         FormManager.handleSubmit({
             form_selector: form,
             fnc_response_handler: handleNewAccount
@@ -29866,10 +29877,8 @@ var VirtualAccOpening = function () {
     };
 
     var handleResidenceList = function handleResidenceList(residence_list) {
+        var $residence = $('#residence');
         if (residence_list.length > 0) {
-            var $residence = $('#residence');
-            var residence_value = Client.get('residence') || '';
-
             var $options_with_disabled = $('<div/>');
             residence_list.forEach(function (res) {
                 $options_with_disabled.append(makeOption({
@@ -29879,31 +29888,32 @@ var VirtualAccOpening = function () {
                 }));
             });
             $residence.html($options_with_disabled.html());
-            $('#residence').select2({
-                matcher: function matcher(params, data) {
-                    return SelectMatcher(params, data);
-                }
-            });
 
-            if (!residence_value) {
-                BinarySocket.wait('website_status').then(function (data) {
-                    return handleWebsiteStatus(data.website_status);
-                });
-            }
+            BinarySocket.wait('website_status').then(function (response) {
+                return handleWebsiteStatus(response.website_status, $residence);
+            });
+        } else {
+            $residence.setVisibility(1);
         }
     };
 
-    var handleWebsiteStatus = function handleWebsiteStatus(website_status) {
-        var clients_country = (website_status || {}).clients_country;
-        if (!clients_country) return;
-        var $residence = $('#residence');
+    var handleWebsiteStatus = function handleWebsiteStatus() {
+        var website_status = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
+        var $residence = arguments[1];
 
-        // set residence value to client's country, detected by IP address from back-end
+        if (!website_status || isEmptyObject(website_status)) return;
+        var clients_country = website_status.clients_country;
+
+        // set residence value to client's country, detected by IP address from API
         var $clients_country = $residence.find('option[value="' + clients_country + '"]');
         if (!$clients_country.attr('disabled')) {
             $clients_country.prop('selected', true);
         }
-        $residence.setVisibility(1);
+        $residence.select2({
+            matcher: function matcher(params, data) {
+                return SelectMatcher(params, data);
+            }
+        }).setVisibility(1);
     };
 
     var bindValidation = function bindValidation() {
