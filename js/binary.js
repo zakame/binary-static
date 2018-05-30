@@ -2291,7 +2291,7 @@ var commonTrading = function () {
     var hideOverlayContainer = function hideOverlayContainer() {
         showHideOverlay('contract_confirmation_container', 'none');
         showHideOverlay('contracts_list', 'flex');
-        $('.purchase_button').text(localize('Purchase')).parent().removeClass('disabled button-disabled');
+        $('.purchase_button').text(localize('Purchase'));
     };
 
     var getContractCategoryTree = function getContractCategoryTree(elements) {
@@ -11816,8 +11816,8 @@ var JapanPortfolio = function () {
         if (isTradePage() && is_portfolio_active) {
             PortfolioInit.onUnload();
             is_portfolio_active = false;
-            $portfolio = undefined;
         }
+        $portfolio = undefined;
     };
 
     var isTradePage = function isTradePage() {
@@ -21663,7 +21663,8 @@ var Cashier = function () {
         if (Client.isLoggedIn()) {
             BinarySocket.wait('authorize').then(function () {
                 var is_virtual = Client.get('is_virtual');
-                var is_crypto = isCryptocurrency(Client.get('currency'));
+                var client_cur = Client.get('currency');
+                var is_crypto = isCryptocurrency(client_cur);
                 if (is_virtual) {
                     displayTopUpButton();
                 }
@@ -21671,7 +21672,9 @@ var Cashier = function () {
                 if (residence) {
                     BinarySocket.send({ paymentagent_list: residence }).then(function (response) {
                         var list = getPropertyValue(response, ['paymentagent_list', 'list']);
-                        if (list && list.length) {
+                        if (client_cur && (list || []).find(function (pa) {
+                            return new RegExp(client_cur).test(pa.currencies);
+                        })) {
                             $('#payment-agent-section').setVisibility(1);
                         }
                     });
@@ -25114,7 +25117,8 @@ var TradingEvents = function () {
                 }
             }, this);
             if (id && ask_price) {
-                $purchase_button.text(localize('Purchase request sent')).parent().addClass('disabled button-disabled');
+                $purchase_button.parent().addClass('button-disabled');
+                $(this).text(localize('Purchase request sent'));
                 BinarySocket.send(params).then(function (response) {
                     Purchase.display(response);
                     GTM.pushPurchaseData(response);
