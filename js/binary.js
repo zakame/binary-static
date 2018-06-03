@@ -5816,11 +5816,11 @@ var ViewPopup = function () {
 
     var update = function update() {
         var is_touch_tick = /touch/i.test(contract.contract_type) && contract.tick_count;
-        is_sold_before_expiry = is_touch_tick ? contract.sell_spot_time && +contract.sell_spot_time < contract.date_expiry : contract.sell_time && contract.sell_time < contract.date_expiry;
+        is_sold_before_expiry = is_touch_tick ? contract.sell_spot_time && +contract.sell_spot_time < contract.date_expiry : contract.status === 'sold' || contract.sell_time && contract.sell_time < contract.date_expiry;
 
         var final_price = contract.sell_price || contract.bid_price;
         var is_started = !contract.is_forward_starting || contract.current_spot_time > contract.date_start;
-        var is_ended = contract.is_settleable || contract.is_sold || is_sold_before_expiry;
+        var is_ended = contract.status !== 'open';
         var indicative_price = final_price && is_ended ? final_price : contract.bid_price || null;
         var is_sold_before_start = contract.sell_time && contract.sell_time < contract.date_start;
 
@@ -5905,14 +5905,14 @@ var ViewPopup = function () {
             is_sold = true;
             if (!contract.tick_count) Highchart.showChart(contract, 'update');else TickDisplay.updateChart({ is_sold: true }, contract);
         }
+        if (contract.is_valid_to_sell && contract.is_settleable && !contract.is_sold && !is_sell_clicked) {
+            ViewPopupUI.forgetStreams();
+            BinarySocket.send({ sell_expired: 1 }).then(function (response) {
+                getContract(response);
+            });
+        }
         if (is_ended) {
-            contractEnded(parseFloat(profit_loss) >= 0);
-            if (contract.is_valid_to_sell && contract.is_settleable && !contract.is_sold && !is_sell_clicked) {
-                ViewPopupUI.forgetStreams();
-                BinarySocket.send({ sell_expired: 1 }).then(function (response) {
-                    getContract(response);
-                });
-            }
+            contractEnded();
             if (!contract.tick_count) Highchart.showChart(contract, 'update');else TickDisplay.updateChart({ is_sold: true }, contract);
         } else {
             $container.find('#notice_ongoing').setVisibility(1);
@@ -5934,8 +5934,7 @@ var ViewPopup = function () {
         Clock.showLocalTimeOnHover('#trade_details_live_date');
 
         var is_started = !contract.is_forward_starting || contract.current_spot_time > contract.date_start;
-        var is_ended = contract.is_settleable || contract.is_sold;
-        if (!is_started || is_ended || now >= contract.date_expiry) {
+        if (!is_started || contract.status !== 'open') {
             containerSetText('trade_details_live_remaining', '-');
         } else {
             var remained = contract.date_expiry - now;
@@ -5950,7 +5949,7 @@ var ViewPopup = function () {
     };
 
     var contractEnded = function contractEnded() {
-        containerSetText('trade_details_current_title', localize(contract.sell_spot_time < contract.date_expiry ? 'Contract Sold' : 'Contract Expiry'));
+        containerSetText('trade_details_current_title', localize(contract.status === 'sold' || contract.sell_spot_time < contract.date_expiry ? 'Contract Sold' : 'Contract Expiry'));
 
         containerSetText('trade_details_indicative_label', localize('Price'));
         if (Lookback.isLookback(contract.contract_type)) {
@@ -9776,21 +9775,15 @@ var TickDisplay = function () {
         contract_start_moment = void 0,
         counter = void 0,
         spots_list = void 0,
-        tick_underlying = void 0,
-        tick_count = void 0,
-        tick_longcode = void 0,
-        tick_display_name = void 0,
-        tick_date_start = void 0,
-        absolute_barrier = void 0,
-        tick_shortcode = void 0,
         tick_init = void 0,
         subscribe = void 0,
         response_id = void 0,
-        sell_spot_time = void 0,
-        exit_tick_time = void 0,
-        status = void 0;
+        contract = void 0;
 
     var id_render = 'tick_chart';
+
+    var winning_color = 'rgba(46, 136, 54, 0.2)';
+    var losing_color = 'rgba(204, 0, 0, 0.1)';
 
     var initialize = function initialize(data, options) {
         // setting up globals
@@ -9803,7 +9796,6 @@ var TickDisplay = function () {
         abs_barrier = data.abs_barrier;
         display_decimals = data.display_decimals || 2;
         show_contract_result = data.show_contract_result;
-        status = '';
 
         if (data.id_render) {
             id_render = data.id_render;
@@ -9995,15 +9987,15 @@ var TickDisplay = function () {
     };
 
     var evaluateContractOutcome = function evaluateContractOutcome() {
-        if (status && status !== 'open') {
-            if (status === 'won') {
+        if (contract.status && contract.status !== 'open') {
+            if (contract.status === 'won') {
                 if (show_contract_result) {
-                    $('#' + id_render).css('background-color', 'rgba(46, 136, 54, 0.2)');
+                    $('#' + id_render).css('background-color', winning_color);
                 }
                 updatePurchaseStatus(payout, price, localize('This contract won'));
-            } else if (status === 'lost') {
+            } else if (contract.status === 'lost') {
                 if (show_contract_result) {
-                    $('#' + id_render).css('background-color', 'rgba(204, 0, 0, 0.1)');
+                    $('#' + id_render).css('background-color', losing_color);
                 }
                 updatePurchaseStatus(0, -price, localize('This contract lost'));
             }
@@ -10044,23 +10036,23 @@ var TickDisplay = function () {
                     chart_display_decimals = data.history.prices[0].split('.')[1].length || 2;
                 }
             }
-            if (!tick_init) {
+            if (!tick_init && contract) {
                 var category = 'callput';
-                if (/asian/i.test(tick_shortcode)) {
+                if (/asian/i.test(contract.shortcode)) {
                     category = 'asian';
-                } else if (/digit/i.test(tick_shortcode)) {
+                } else if (/digit/i.test(contract.shortcode)) {
                     category = 'digits';
-                } else if (/touch/i.test(tick_shortcode)) {
+                } else if (/touch/i.test(contract.shortcode)) {
                     category = 'touchnotouch';
                 }
                 initialize({
-                    symbol: tick_underlying,
-                    number_of_ticks: tick_count,
+                    symbol: contract.underlying,
+                    number_of_ticks: contract.tick_count,
                     contract_category: category,
-                    longcode: tick_longcode,
-                    display_symbol: tick_display_name,
-                    contract_start: tick_date_start,
-                    abs_barrier: absolute_barrier,
+                    longcode: contract.longcode,
+                    display_symbol: contract.display_name,
+                    contract_start: contract.date_start,
+                    abs_barrier: contract.barrier,
                     display_decimals: chart_display_decimals,
                     show_contract_result: 0
                 }, data);
@@ -10079,12 +10071,12 @@ var TickDisplay = function () {
         }
 
         var has_finished = applicable_ticks && ticks_needed && applicable_ticks.length >= ticks_needed;
-        var has_sold = sell_spot_time && applicable_ticks && applicable_ticks.find(function (_ref) {
+        var has_sold = contract && contract.sell_spot_time && applicable_ticks && applicable_ticks.find(function (_ref) {
             var epoch = _ref.epoch;
-            return epoch === sell_spot_time;
+            return epoch === contract.sell_spot_time;
         }) !== undefined;
 
-        if (!has_finished && !has_sold && (!data.tick || !status || status === 'open')) {
+        if (!has_finished && !has_sold && (!data.tick || !contract.status || contract.status === 'open')) {
             for (var d = 0; d < epoches.length; d++) {
                 var tick = void 0;
                 if (data.tick) {
@@ -10106,7 +10098,7 @@ var TickDisplay = function () {
                     spots_list[tick.epoch] = tick.quote;
                     var indicator_key = '_' + counter;
 
-                    var exit_time = Math.min(sell_spot_time, exit_tick_time) || sell_spot_time || exit_tick_time;
+                    var exit_time = contract ? Math.min(contract.sell_spot_time, contract.exit_tick_time) || contract.sell_spot_time || contract.exit_tick_time : '';
 
                     if (!x_indicators[indicator_key] && tick.epoch === exit_time) {
                         x_indicators[indicator_key] = {
@@ -10130,18 +10122,18 @@ var TickDisplay = function () {
     };
 
     var addSellSpot = function addSellSpot() {
-        if (!applicable_ticks) return;
+        if (!applicable_ticks || !contract) return;
 
         var index = applicable_ticks.findIndex(function (_ref2) {
             var epoch = _ref2.epoch;
-            return epoch === sell_spot_time;
+            return epoch === contract.sell_spot_time;
         });
 
         // if sell spot time is later than exit tick time, use that instead
         if (index === -1) {
             index = applicable_ticks.findIndex(function (_ref3) {
                 var epoch = _ref3.epoch;
-                return epoch === exit_tick_time;
+                return epoch === contract.exit_tick_time;
             });
         }
 
@@ -10161,28 +10153,19 @@ var TickDisplay = function () {
     };
 
     var getExitLabel = function getExitLabel() {
-        return sell_spot_time && exit_tick_time && sell_spot_time >= exit_tick_time ? 'Exit Spot' : 'Sell Spot';
+        return contract && contract.sell_spot_time && contract.exit_tick_time && contract.sell_spot_time >= contract.exit_tick_time ? 'Exit Spot' : 'Sell Spot';
     };
 
-    var updateChart = function updateChart(data, contract) {
+    var updateChart = function updateChart(data, proposal_open_contract) {
         subscribe = 'false';
-        if (contract) {
-            sell_spot_time = +contract.sell_spot_time;
-            exit_tick_time = +contract.exit_tick_time;
+        if (proposal_open_contract) {
+            contract = proposal_open_contract;
         }
 
         if (data.is_sold) {
             addSellSpot();
-        } else if (contract) {
-            tick_underlying = contract.underlying;
-            tick_count = contract.tick_count;
-            tick_longcode = contract.longcode;
-            tick_display_name = contract.display_name;
-            tick_date_start = contract.date_start;
-            absolute_barrier = contract.barrier;
-            tick_shortcode = contract.shortcode;
+        } else if (proposal_open_contract) {
             tick_init = '';
-            status = contract.status;
 
             if (data.id_render) {
                 id_render = data.id_render;
@@ -10196,8 +10179,8 @@ var TickDisplay = function () {
             if (contract.current_spot_time < contract.date_expiry) {
                 request.subscribe = 1;
                 subscribe = 'true';
-            } else if (sell_spot_time && sell_spot_time < contract.date_expiry) {
-                request.end = sell_spot_time;
+            } else if (contract.sell_spot_time && contract.sell_spot_time < contract.date_expiry) {
+                request.end = contract.sell_spot_time;
             } else {
                 request.end = contract.date_expiry;
             }
@@ -10213,10 +10196,10 @@ var TickDisplay = function () {
         resetSpots: function resetSpots() {
             spots_list = {};$('#' + id_render).css('background-color', '#F2F2F2');
         },
-        setStatus: function setStatus(contract) {
-            status = contract.status;
-            sell_spot_time = +contract.sell_spot_time;
-            exit_tick_time = +contract.exit_tick_time;
+        setStatus: function setStatus() {
+            var proposal_open_contract = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
+
+            contract = proposal_open_contract;
             evaluateContractOutcome();
         }
     };
@@ -12803,6 +12786,7 @@ var Purchase = function () {
                 id_render: 'trade_tick_chart'
             });
             TickDisplay.resetSpots();
+            TickDisplay.setStatus(); // reset status first
 
             var request = {
                 proposal_open_contract: 1,
@@ -28093,6 +28077,8 @@ var SelfExclusion = function () {
                     if (key === 'exclude_until') {
                         setDateTimePicker(exclude_until_id, value);
                         $form.find('label[for="exclude_until"]').text('Excluded from the website until');
+                        $('#ukgc_gamstop').setVisibility(is_gamstop_client);
+                        $('#ukgc_requirement_notice').setVisibility(1);
                         return;
                     }
                     if (key === 'max_30day_turnover') {
@@ -28284,6 +28270,11 @@ var SelfExclusion = function () {
             return;
         }
         showFormMessage('Your changes have been updated.', true);
+        if ($('#exclude_until').attr('data-value')) {
+            $('#gamstop_info_bottom').setVisibility(0);
+            $('#ukgc_gamstop').setVisibility(is_gamstop_client);
+            $('#ukgc_requirement_notice').setVisibility(1);
+        }
         Client.set('session_start', moment().unix()); // used to handle session duration limit
         var _response$echo_req = response.echo_req,
             exclude_until = _response$echo_req.exclude_until,
