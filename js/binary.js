@@ -21647,8 +21647,7 @@ var Cashier = function () {
         if (Client.isLoggedIn()) {
             BinarySocket.wait('authorize').then(function () {
                 var is_virtual = Client.get('is_virtual');
-                var client_cur = Client.get('currency');
-                var is_crypto = isCryptocurrency(client_cur);
+                var is_crypto = isCryptocurrency(Client.get('currency'));
                 if (is_virtual) {
                     displayTopUpButton();
                 }
@@ -21656,9 +21655,7 @@ var Cashier = function () {
                 if (residence) {
                     BinarySocket.send({ paymentagent_list: residence }).then(function (response) {
                         var list = getPropertyValue(response, ['paymentagent_list', 'list']);
-                        if (client_cur && (list || []).find(function (pa) {
-                            return new RegExp(client_cur).test(pa.currencies);
-                        })) {
+                        if (list && list.length) {
                             $('#payment-agent-section').setVisibility(1);
                         }
                     });
