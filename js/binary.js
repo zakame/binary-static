@@ -555,7 +555,7 @@ module.exports = {
 "use strict";
 
 
-var BinarySocketBase = __webpack_require__(91);
+var BinarySocketBase = __webpack_require__(92);
 
 // This is to maintain the current references and also to provide the ability to extend this section separately in the future
 module.exports = BinarySocketBase;
@@ -1742,7 +1742,7 @@ module.exports = Clock;
 var BinaryPjax = __webpack_require__(12);
 var Client = __webpack_require__(3);
 var BinarySocket = __webpack_require__(5);
-var showHidePulser = __webpack_require__(94).showHidePulser;
+var showHidePulser = __webpack_require__(95).showHidePulser;
 var checkClientsCountry = __webpack_require__(166).checkClientsCountry;
 var MetaTrader = __webpack_require__(127);
 var GTM = __webpack_require__(54);
@@ -2985,7 +2985,7 @@ var Cookies = __webpack_require__(50);
 var moment = __webpack_require__(9);
 var ClientBase = __webpack_require__(84);
 var Login = __webpack_require__(55);
-var BinarySocket = __webpack_require__(91);
+var BinarySocket = __webpack_require__(92);
 var getElementById = __webpack_require__(4).getElementById;
 var isVisible = __webpack_require__(4).isVisible;
 var getLanguage = __webpack_require__(16).get;
@@ -4153,7 +4153,8 @@ var SocketCache = function () {
 
         // prevent unwanted page behaviour
         // if a cached version already exists but it gives an error after being called for updating the cache
-        if ((response.error || !response[msg_type]) && get(response.echo_req)) {
+        var cashed_response = get(response.echo_req);
+        if ((response.error || !response[msg_type]) && cashed_response && !cashed_response.error) {
             clear();
             window.location.reload();
             return;
@@ -5436,7 +5437,7 @@ module.exports = DatePicker;
 "use strict";
 
 
-var showChart = __webpack_require__(96).showChart;
+var showChart = __webpack_require__(87).showChart;
 var Defaults = __webpack_require__(23);
 var getActiveTab = __webpack_require__(173).getActiveTab;
 var GetTicks = __webpack_require__(97);
@@ -5445,7 +5446,7 @@ var JapanPortfolio = __webpack_require__(170);
 var getElementById = __webpack_require__(4).getElementById;
 var getLanguage = __webpack_require__(16).get;
 var State = __webpack_require__(6).State;
-var TabSelector = __webpack_require__(93);
+var TabSelector = __webpack_require__(94);
 var Url = __webpack_require__(8);
 
 /*
@@ -5691,6 +5692,129 @@ module.exports = TradingAnalysis;
 
 /***/ }),
 /* 87 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+var getAllSymbols = __webpack_require__(78).getAllSymbols;
+var MBDefaults = __webpack_require__(36);
+var isJPClient = __webpack_require__(3).isJPClient;
+var getElementById = __webpack_require__(4).getElementById;
+var getLanguage = __webpack_require__(16).get;
+var localize = __webpack_require__(2).localize;
+var State = __webpack_require__(6).State;
+var getPropertyValue = __webpack_require__(1).getPropertyValue;
+var Config = __webpack_require__(51);
+
+var WebtraderChart = function () {
+    var chart = void 0,
+        WebtraderCharts = void 0,
+        is_initialized = void 0;
+
+    var showChart = function showChart() {
+        if (State.get('is_chart_allowed')) {
+            setChart();
+        } else {
+            cleanupChart();
+            $('#trade_live_chart').hide();
+            $('#chart-error').text(localize('Chart is not available for this underlying.')).show();
+        }
+    };
+
+    var cleanupChart = function cleanupChart() {
+        if (typeof getPropertyValue(chart, ['actions', 'destroy']) === 'function') {
+            chart.actions.destroy();
+        }
+        chart = undefined;
+    };
+
+    var setChart = function setChart() {
+        var is_mb_trading = State.get('is_mb_trading');
+        var new_underlying = is_mb_trading ? $('#underlying').attr('value') : getElementById('underlying').value;
+        if (($('#tab_graph').hasClass('active') || is_mb_trading) && (!chart || chart.data().instrumentCode !== new_underlying || is_mb_trading && (getChartSettings().time_frame !== chart.data().timePeriod || getChartSettings().chart_type !== chart.data().type))) {
+            cleanupChart();
+            initChart();
+        }
+        $('#chart-error').hide();
+        $('#trade_live_chart').show();
+    };
+
+    var initChart = function initChart() {
+        if (!State.get('is_chart_allowed')) return;
+        if (!is_initialized) {
+            __webpack_require__.e/* require.ensure */(0).then((function () {
+                __webpack_require__.e/* require.ensure */(3).then((function (require) {
+                    WebtraderCharts = __webpack_require__(565);
+                    WebtraderCharts.init({
+                        server: Config.getSocketURL(),
+                        appId: Config.getAppId(),
+                        lang: getLanguage().toLowerCase()
+                    });
+                    is_initialized = true;
+                    addChart();
+                }).bind(null, __webpack_require__)).catch(__webpack_require__.oe);
+            }).bind(null, __webpack_require__)).catch(__webpack_require__.oe);
+        } else {
+            addChart();
+        }
+    };
+
+    var addChart = function addChart() {
+        var is_mb_trading = State.get('is_mb_trading');
+        var $underlying = $('#underlying');
+        var $underlying_code = is_mb_trading ? $underlying.attr('value') : $underlying.val();
+        var $underlying_name = is_mb_trading ? $underlying.find('.current .name').text() : getAllSymbols()[$underlying_code];
+
+        var chart_config = {
+            instrumentCode: $underlying_code,
+            instrumentName: $underlying_name,
+            showInstrumentName: true,
+            timePeriod: getChartSettings().time_frame,
+            type: getChartSettings().chart_type,
+            lang: getLanguage().toLowerCase(),
+            timezoneOffset: (isJPClient() ? -9 : 0) * 60,
+            showShare: !is_mb_trading
+        };
+
+        chart = WebtraderCharts.chartWindow.addNewChart($('#webtrader_chart'), chart_config);
+    };
+
+    var redrawChart = function redrawChart() {
+        if (typeof getPropertyValue(chart, ['actions', 'reflow']) === 'function') {
+            chart.actions.reflow();
+        }
+    };
+
+    var getChartSettings = function getChartSettings() {
+        var chart_settings = { time_frame: '1t', chart_type: 'line' };
+        if (State.get('is_mb_trading')) {
+            var period = MBDefaults.get('period').split('_')[2].substr(0, 2).toUpperCase();
+            var period_map = {
+                '5H': { time_frame: '1m', chart_type: 'line' },
+                '0D': { time_frame: '30m', chart_type: 'ohlc' },
+                '1W': { time_frame: '1d', chart_type: 'ohlc' },
+                '1M': { time_frame: '1d', chart_type: 'candlestick' },
+                '3M': { time_frame: '1d', chart_type: 'candlestick' },
+                '1Y': { time_frame: '1d', chart_type: 'candlestick' }
+            };
+            chart_settings = period_map[period] || chart_settings;
+        }
+        return chart_settings;
+    };
+
+    return {
+        showChart: showChart,
+        cleanupChart: cleanupChart,
+        setChart: setChart,
+        redrawChart: redrawChart
+    };
+}();
+
+module.exports = WebtraderChart;
+
+/***/ }),
+/* 88 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -6401,10 +6525,10 @@ var formatMoney = __webpack_require__(7).formatMoney;
 module.exports = ViewPopup;
 
 /***/ }),
-/* 88 */,
 /* 89 */,
 /* 90 */,
-/* 91 */
+/* 91 */,
+/* 92 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -6747,7 +6871,7 @@ var PromiseClass = function PromiseClass() {
 module.exports = BinarySocketBase;
 
 /***/ }),
-/* 92 */
+/* 93 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -6875,7 +6999,7 @@ var Scroll = function () {
 module.exports = Scroll;
 
 /***/ }),
-/* 93 */
+/* 94 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -7066,7 +7190,7 @@ var TabSelector = function () {
 module.exports = TabSelector;
 
 /***/ }),
-/* 94 */
+/* 95 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -7281,7 +7405,7 @@ var AccountOpening = function () {
 module.exports = AccountOpening;
 
 /***/ }),
-/* 95 */
+/* 96 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -7356,129 +7480,6 @@ var MBNotifications = function () {
 }();
 
 module.exports = MBNotifications;
-
-/***/ }),
-/* 96 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-
-var getAllSymbols = __webpack_require__(78).getAllSymbols;
-var MBDefaults = __webpack_require__(36);
-var isJPClient = __webpack_require__(3).isJPClient;
-var getElementById = __webpack_require__(4).getElementById;
-var getLanguage = __webpack_require__(16).get;
-var localize = __webpack_require__(2).localize;
-var State = __webpack_require__(6).State;
-var getPropertyValue = __webpack_require__(1).getPropertyValue;
-var Config = __webpack_require__(51);
-
-var WebtraderChart = function () {
-    var chart = void 0,
-        WebtraderCharts = void 0,
-        is_initialized = void 0;
-
-    var showChart = function showChart() {
-        if (State.get('is_chart_allowed')) {
-            setChart();
-        } else {
-            cleanupChart();
-            $('#trade_live_chart').hide();
-            $('#chart-error').text(localize('Chart is not available for this underlying.')).show();
-        }
-    };
-
-    var cleanupChart = function cleanupChart() {
-        if (typeof getPropertyValue(chart, ['actions', 'destroy']) === 'function') {
-            chart.actions.destroy();
-        }
-        chart = undefined;
-    };
-
-    var setChart = function setChart() {
-        var is_mb_trading = State.get('is_mb_trading');
-        var new_underlying = is_mb_trading ? $('#underlying').attr('value') : getElementById('underlying').value;
-        if (($('#tab_graph').hasClass('active') || is_mb_trading) && (!chart || chart.data().instrumentCode !== new_underlying || is_mb_trading && (getChartSettings().time_frame !== chart.data().timePeriod || getChartSettings().chart_type !== chart.data().type))) {
-            cleanupChart();
-            initChart();
-        }
-        $('#chart-error').hide();
-        $('#trade_live_chart').show();
-    };
-
-    var initChart = function initChart() {
-        if (!State.get('is_chart_allowed')) return;
-        if (!is_initialized) {
-            __webpack_require__.e/* require.ensure */(0).then((function () {
-                __webpack_require__.e/* require.ensure */(3).then((function (require) {
-                    WebtraderCharts = __webpack_require__(565);
-                    WebtraderCharts.init({
-                        server: Config.getSocketURL(),
-                        appId: Config.getAppId(),
-                        lang: getLanguage().toLowerCase()
-                    });
-                    is_initialized = true;
-                    addChart();
-                }).bind(null, __webpack_require__)).catch(__webpack_require__.oe);
-            }).bind(null, __webpack_require__)).catch(__webpack_require__.oe);
-        } else {
-            addChart();
-        }
-    };
-
-    var addChart = function addChart() {
-        var is_mb_trading = State.get('is_mb_trading');
-        var $underlying = $('#underlying');
-        var $underlying_code = is_mb_trading ? $underlying.attr('value') : $underlying.val();
-        var $underlying_name = is_mb_trading ? $underlying.find('.current .name').text() : getAllSymbols()[$underlying_code];
-
-        var chart_config = {
-            instrumentCode: $underlying_code,
-            instrumentName: $underlying_name,
-            showInstrumentName: true,
-            timePeriod: getChartSettings().time_frame,
-            type: getChartSettings().chart_type,
-            lang: getLanguage().toLowerCase(),
-            timezoneOffset: (isJPClient() ? -9 : 0) * 60,
-            showShare: !is_mb_trading
-        };
-
-        chart = WebtraderCharts.chartWindow.addNewChart($('#webtrader_chart'), chart_config);
-    };
-
-    var redrawChart = function redrawChart() {
-        if (typeof getPropertyValue(chart, ['actions', 'reflow']) === 'function') {
-            chart.actions.reflow();
-        }
-    };
-
-    var getChartSettings = function getChartSettings() {
-        var chart_settings = { time_frame: '1t', chart_type: 'line' };
-        if (State.get('is_mb_trading')) {
-            var period = MBDefaults.get('period').split('_')[2].substr(0, 2).toUpperCase();
-            var period_map = {
-                '5H': { time_frame: '1m', chart_type: 'line' },
-                '0D': { time_frame: '30m', chart_type: 'ohlc' },
-                '1W': { time_frame: '1d', chart_type: 'ohlc' },
-                '1M': { time_frame: '1d', chart_type: 'candlestick' },
-                '3M': { time_frame: '1d', chart_type: 'candlestick' },
-                '1Y': { time_frame: '1d', chart_type: 'candlestick' }
-            };
-            chart_settings = period_map[period] || chart_settings;
-        }
-        return chart_settings;
-    };
-
-    return {
-        showChart: showChart,
-        cleanupChart: cleanupChart,
-        setChart: setChart,
-        redrawChart: redrawChart
-    };
-}();
-
-module.exports = WebtraderChart;
 
 /***/ }),
 /* 97 */
@@ -8430,10 +8431,10 @@ module.exports = showPopup;
 
 var MBContract = __webpack_require__(77);
 var MBDefaults = __webpack_require__(36);
-var MBNotifications = __webpack_require__(95);
+var MBNotifications = __webpack_require__(96);
 var TradingAnalysis = __webpack_require__(86);
-var redrawChart = __webpack_require__(96).redrawChart;
-var ViewPopup = __webpack_require__(87);
+var redrawChart = __webpack_require__(87).redrawChart;
+var ViewPopup = __webpack_require__(88);
 var Client = __webpack_require__(3);
 var BinarySocket = __webpack_require__(5);
 var formatMoney = __webpack_require__(7).formatMoney;
@@ -8788,7 +8789,7 @@ module.exports = MBPrice;
 
 
 var MBDefaults = __webpack_require__(36);
-var MBNotifications = __webpack_require__(95);
+var MBNotifications = __webpack_require__(96);
 var BinarySocket = __webpack_require__(5);
 var getElementById = __webpack_require__(4).getElementById;
 var getPropertyValue = __webpack_require__(1).getPropertyValue;
@@ -10288,7 +10289,7 @@ module.exports = {
 
 
 var Portfolio = __webpack_require__(293).Portfolio;
-var ViewPopup = __webpack_require__(87);
+var ViewPopup = __webpack_require__(88);
 var Client = __webpack_require__(3);
 var toJapanTimeIfNeeded = __webpack_require__(26).toJapanTimeIfNeeded;
 var BinarySocket = __webpack_require__(5);
@@ -11861,10 +11862,11 @@ module.exports = JapanPortfolio;
 
 var MBContract = __webpack_require__(77);
 var MBDefaults = __webpack_require__(36);
-var MBNotifications = __webpack_require__(95);
+var MBNotifications = __webpack_require__(96);
 var MBPrice = __webpack_require__(120);
 var MBSymbols = __webpack_require__(172);
 var MBTick = __webpack_require__(121);
+var showChart = __webpack_require__(87).showChart;
 var commonTrading = __webpack_require__(31);
 var BinaryPjax = __webpack_require__(12);
 var Client = __webpack_require__(3);
@@ -12052,6 +12054,10 @@ var MBProcess = function () {
     var processContract = function processContract(contracts, should_send_proposal) {
         if (getPropertyValue(contracts, 'error')) {
             MBNotifications.show({ text: contracts.error.message, uid: contracts.error.code });
+            // Hide trading form but still display the chart
+            $('#period').parents('.selection_wrapper').setVisibility(0);
+            $('.price-table, ' + (Client.isLoggedIn() ? '#tab_explanation' : '#trade_analysis')).setVisibility(0);
+            showChart();
             return;
         }
 
@@ -14167,7 +14173,7 @@ module.exports = AffiliatePopup;
 
 var Login = __webpack_require__(55);
 var localize = __webpack_require__(2).localize;
-var TabSelector = __webpack_require__(93);
+var TabSelector = __webpack_require__(94);
 var BinarySocket = __webpack_require__(5);
 var FormManager = __webpack_require__(21);
 
@@ -17687,7 +17693,7 @@ module.exports = BinaryLoader;
 
 function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
 
-var BinarySocket = __webpack_require__(91);
+var BinarySocket = __webpack_require__(92);
 
 /*
  * Monitors the network status and initialises the WebSocket connection
@@ -17825,7 +17831,7 @@ module.exports = NetworkMonitorBase;
 
 
 var moment = __webpack_require__(9);
-var BinarySocket = __webpack_require__(91);
+var BinarySocket = __webpack_require__(92);
 
 var ServerTime = function () {
     var clock_started = false;
@@ -19803,7 +19809,7 @@ module.exports = ThirdPartyLinks;
 
 
 // ==================== _common ====================
-var TabSelector = __webpack_require__(93);
+var TabSelector = __webpack_require__(94);
 
 // ==================== app ====================
 var LoggedInHandler = __webpack_require__(253);
@@ -20270,7 +20276,7 @@ var PushNotification = __webpack_require__(247);
 var Localize = __webpack_require__(2);
 var localize = __webpack_require__(2).localize;
 var State = __webpack_require__(6).State;
-var scrollToTop = __webpack_require__(92).scrollToTop;
+var scrollToTop = __webpack_require__(93).scrollToTop;
 var Url = __webpack_require__(8);
 var createElement = __webpack_require__(1).createElement;
 var AffiliatePopup = __webpack_require__(182);
@@ -20698,7 +20704,7 @@ module.exports = createLanguageDropDown;
 var Client = __webpack_require__(3);
 var BinarySocket = __webpack_require__(5);
 var State = __webpack_require__(6).State;
-var updateTabDisplay = __webpack_require__(93).updateTabDisplay;
+var updateTabDisplay = __webpack_require__(94).updateTabDisplay;
 var MetaTrader = __webpack_require__(127);
 
 /*
@@ -22475,7 +22481,7 @@ module.exports = MBDisplayCurrencies;
 
 var MBContract = __webpack_require__(77);
 var MBDefaults = __webpack_require__(36);
-var MBNotifications = __webpack_require__(95);
+var MBNotifications = __webpack_require__(96);
 var MBPrice = __webpack_require__(120);
 var MBProcess = __webpack_require__(171);
 var MBTick = __webpack_require__(121);
@@ -22487,6 +22493,7 @@ var Currency = __webpack_require__(7);
 var onlyNumericOnKeypress = __webpack_require__(167);
 var localize = __webpack_require__(2).localize;
 var State = __webpack_require__(6).State;
+var getPropertyValue = __webpack_require__(1).getPropertyValue;
 
 /*
  * TradingEvents object contains all the event handler function required for
@@ -22497,10 +22504,15 @@ var State = __webpack_require__(6).State;
  *
  */
 var MBTradingEvents = function () {
+    var $form = void 0,
+        hidden_class = void 0,
+        border_class = void 0;
+
     var initiate = function initiate() {
-        var $form = $('.trade_form');
-        var hidden_class = 'invisible';
-        var border_class = 'primary-border-color';
+        $form = $('.trade_form');
+        hidden_class = 'invisible';
+        border_class = 'primary-border-color';
+
         var is_jp_client = Client.isJPClient();
 
         $(document).on('click', function (e) {
@@ -22514,7 +22526,7 @@ var MBTradingEvents = function () {
             var $list = $this.siblings('.list');
             if (!$list.length) {
                 $list = $this.siblings().find('.list'); // in case of .header-current
-            };
+            }
             if ($list.hasClass(hidden_class)) {
                 makeListsInvisible();
             }
@@ -22581,7 +22593,9 @@ var MBTradingEvents = function () {
         }
 
         var validatePayout = function validatePayout(payout_amount, $error_wrapper) {
-            var market = MBSymbols.getAllSymbols()[MBDefaults.get('underlying')].market;
+            var market = getPropertyValue(MBSymbols.getAllSymbols(), [MBDefaults.get('underlying'), 'market']);
+            if (!market) return false;
+
             var selected_currency = MBDefaults.get('currency');
             var max_client_amount = State.getResponse('landing_company.financial_company.currency_config.' + market + '.' + selected_currency + '.max_payout') || 5000;
 
@@ -22752,11 +22766,11 @@ var MBTradingEvents = function () {
                 setTradingStatus(status === 'allow');
             });
         }
+    };
 
-        var makeListsInvisible = function makeListsInvisible() {
-            $form.find('.list, #payout_list').setVisibility(0).end().find('#period, #category').setVisibility(1);
-            $form.find('.current, .header-current').removeClass(border_class);
-        };
+    var makeListsInvisible = function makeListsInvisible() {
+        $form.find('.list, #payout_list').setVisibility(0).end().find('#period, #category').setVisibility(1);
+        $form.find('.current, .header-current').removeClass(border_class);
     };
 
     return {
@@ -22779,7 +22793,7 @@ var MBDefaults = __webpack_require__(36);
 var MBTradingEvents = __webpack_require__(273);
 var MBPrice = __webpack_require__(120);
 var MBProcess = __webpack_require__(171);
-var cleanupChart = __webpack_require__(96).cleanupChart;
+var cleanupChart = __webpack_require__(87).cleanupChart;
 var BinaryPjax = __webpack_require__(12);
 var Client = __webpack_require__(3);
 var BinarySocket = __webpack_require__(5);
@@ -26033,13 +26047,13 @@ module.exports = {
 var Dropdown = __webpack_require__(25).selectDropdown;
 var TradingAnalysis = __webpack_require__(86);
 var commonTrading = __webpack_require__(31);
-var cleanupChart = __webpack_require__(96).cleanupChart;
+var cleanupChart = __webpack_require__(87).cleanupChart;
 var displayCurrencies = __webpack_require__(284);
 var Defaults = __webpack_require__(23);
 var TradingEvents = __webpack_require__(285);
 var Price = __webpack_require__(98);
 var Process = __webpack_require__(175);
-var ViewPopup = __webpack_require__(87);
+var ViewPopup = __webpack_require__(88);
 var BinaryPjax = __webpack_require__(12);
 var Client = __webpack_require__(3);
 var Header = __webpack_require__(27);
@@ -26832,7 +26846,7 @@ module.exports = {
 
 
 var ProfitTableUI = __webpack_require__(296);
-var ViewPopup = __webpack_require__(87);
+var ViewPopup = __webpack_require__(88);
 var showLocalTimeOnHover = __webpack_require__(26).showLocalTimeOnHover;
 var BinarySocket = __webpack_require__(5);
 var DateTo = __webpack_require__(165);
@@ -28087,7 +28101,7 @@ var DatePicker = __webpack_require__(85);
 var TimePicker = __webpack_require__(169);
 var dateValueChanged = __webpack_require__(4).dateValueChanged;
 var localize = __webpack_require__(2).localize;
-var scrollToHashSection = __webpack_require__(92).scrollToHashSection;
+var scrollToHashSection = __webpack_require__(93).scrollToHashSection;
 
 var SelfExclusion = function () {
     var $form = void 0,
@@ -28405,7 +28419,7 @@ module.exports = SelfExclusion;
 
 
 var StatementUI = __webpack_require__(311);
-var ViewPopup = __webpack_require__(87);
+var ViewPopup = __webpack_require__(88);
 var Client = __webpack_require__(3);
 var showLocalTimeOnHover = __webpack_require__(26).showLocalTimeOnHover;
 var BinarySocket = __webpack_require__(5);
@@ -29724,7 +29738,7 @@ var moment = __webpack_require__(9);
 var BinaryPjax = __webpack_require__(12);
 var Client = __webpack_require__(3);
 var BinarySocket = __webpack_require__(5);
-var AccountOpening = __webpack_require__(94);
+var AccountOpening = __webpack_require__(95);
 var FormManager = __webpack_require__(21);
 var localize = __webpack_require__(2).localize;
 var isEmptyObject = __webpack_require__(1).isEmptyObject;
@@ -29843,7 +29857,7 @@ module.exports = FinancialAccOpening;
 
 var BinaryPjax = __webpack_require__(12);
 var Client = __webpack_require__(3);
-var AccountOpening = __webpack_require__(94);
+var AccountOpening = __webpack_require__(95);
 var FormManager = __webpack_require__(21);
 var detectHedging = __webpack_require__(4).detectHedging;
 
@@ -29895,7 +29909,7 @@ module.exports = JapanAccOpening;
 var BinaryPjax = __webpack_require__(12);
 var Client = __webpack_require__(3);
 var BinarySocket = __webpack_require__(5);
-var AccountOpening = __webpack_require__(94);
+var AccountOpening = __webpack_require__(95);
 var FormManager = __webpack_require__(21);
 var State = __webpack_require__(6).State;
 
@@ -31154,7 +31168,7 @@ module.exports = Regulation;
 
 var tabListener = __webpack_require__(25).tabListener;
 var MenuSelector = __webpack_require__(163);
-var Scroll = __webpack_require__(92);
+var Scroll = __webpack_require__(93);
 var handleHash = __webpack_require__(1).handleHash;
 var BinaryPjax = __webpack_require__(12);
 var Client = __webpack_require__(3);
@@ -31378,7 +31392,7 @@ module.exports = TermsAndConditions;
 "use strict";
 
 
-var Scroll = __webpack_require__(92);
+var Scroll = __webpack_require__(93);
 var Client = __webpack_require__(3);
 
 var WhyUs = function () {
