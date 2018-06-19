@@ -1739,6 +1739,8 @@ module.exports = Clock;
 "use strict";
 
 
+function _toConsumableArray(arr) { if (Array.isArray(arr)) { for (var i = 0, arr2 = Array(arr.length); i < arr.length; i++) { arr2[i] = arr[i]; } return arr2; } else { return Array.from(arr); } }
+
 var BinaryPjax = __webpack_require__(12);
 var Client = __webpack_require__(3);
 var BinarySocket = __webpack_require__(5);
@@ -2026,6 +2028,14 @@ var Header = function () {
                 return Client.getRiskAssessment() && !Client.isJPClient();
             };
 
+            var hasMissingRequiredField = function hasMissingRequiredField() {
+                var required_fields = ['account_opening_reason', 'address_line_1', 'address_city', 'phone', 'tax_identification_number', 'tax_residence'].concat(_toConsumableArray(Client.get('residence') === 'gb' ? ['address_postcode'] : []));
+                var get_settings = State.getResponse('get_settings');
+                return required_fields.some(function (field) {
+                    return !get_settings[field];
+                });
+            };
+
             var buildMessage = function buildMessage(string, path) {
                 var hash = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : '';
                 return localize(string, ['<a href="' + Url.urlFor(path) + hash + '">', '</a>']);
@@ -2052,6 +2062,9 @@ var Header = function () {
                 },
                 financial_limit: function financial_limit() {
                     return buildMessage('Please set your [_1]30-day turnover limit[_2] to remove deposit limits.', 'user/security/self_exclusionws');
+                },
+                required_fields: function required_fields() {
+                    return buildMessage('Please complete your [_1]personal details[_2] before you proceed.', 'user/settings/detailsws');
                 },
                 residence: function residence() {
                     return buildMessage('Please set [_1]country of residence[_2] before upgrading to a real-money account.', 'user/settings/detailsws');
@@ -2099,6 +2112,9 @@ var Header = function () {
                     return (/ukrts_max_turnover_limit_not_set/.test(status)
                     );
                 },
+                required_fields: function required_fields() {
+                    return Client.isAccountOfType('financial') && hasMissingRequiredField();
+                },
                 residence: function residence() {
                     return !Client.get('residence');
                 },
@@ -2122,7 +2138,7 @@ var Header = function () {
             };
 
             // real account checks in order
-            var check_statuses_real = ['excluded_until', 'tnc', 'financial_limit', 'risk', 'tax', 'currency', 'document_review', 'document_needs_action', 'authenticate', 'cashier_locked', 'withdrawal_locked', 'unwelcome'];
+            var check_statuses_real = ['excluded_until', 'tnc', 'required_fields', 'financial_limit', 'risk', 'tax', 'currency', 'document_review', 'document_needs_action', 'authenticate', 'cashier_locked', 'withdrawal_locked', 'unwelcome'];
 
             // virtual checks
             var check_statuses_virtual = ['residence'];
