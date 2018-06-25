@@ -6546,6 +6546,7 @@ var ViewPopup = function () {
         if (is_ended) {
             contractEnded();
             if (!contract.tick_count) Highchart.showChart(contract, 'update');else TickDisplay.updateChart({ is_sold: true }, contract);
+            Clock.setExternalTimer(); // stop timer
         } else {
             $container.find('#notice_ongoing').setVisibility(1);
         }
@@ -6590,8 +6591,9 @@ var ViewPopup = function () {
     };
 
     var contractEnded = function contractEnded() {
-        containerSetText('trade_details_current_title', localize(contract.status === 'sold' || contract.sell_spot_time < contract.date_expiry ? 'Contract Sold' : 'Contract Expiry'));
+        getElementById('trade_details_live_date').parentNode.setVisibility(0);
 
+        containerSetText('trade_details_current_title', localize(contract.status === 'sold' || contract.sell_spot_time < contract.date_expiry ? 'Contract Sold' : 'Contract Expiry'));
         containerSetText('trade_details_indicative_label', localize('Price'));
         if (Lookback.isLookback(contract.contract_type)) {
             containerSetText('trade_details_spot_label', localize('Close'));
@@ -9434,9 +9436,9 @@ var Barriers = function () {
                         }
                     }
                     elm.value = elm.textContent = value;
+                    Barriers.validateBarrier();
                     Defaults.set('barrier', elm.value);
                     Defaults.remove('barrier_high', 'barrier_low');
-                    Barriers.validateBarrier();
                     showHideRelativeTip(barrier.barrier, [tooltip, span]);
                     return;
                 } else if (barrier.count === 2) {
@@ -9504,10 +9506,11 @@ var Barriers = function () {
                     high_elm.value = high_elm.textContent = value_high;
                     low_elm.value = low_elm.textContent = value_low;
 
-                    Defaults.set('barrier_high', high_elm.value);
-                    Defaults.set('barrier_low', low_elm.value);
                     Defaults.remove('barrier');
                     showHideRelativeTip(barrier.barrier, [high_tooltip, high_span, low_tooltip, low_span]);
+                    Barriers.validateBarrier();
+                    Defaults.set('barrier_high', high_elm.value);
+                    Defaults.set('barrier_low', low_elm.value);
                     return;
                 }
             }
@@ -9520,13 +9523,26 @@ var Barriers = function () {
         Defaults.remove('barrier', 'barrier_high', 'barrier_low');
     };
 
+    /**
+    * Validate Barriers
+    */
     var validateBarrier = function validateBarrier() {
         var barrier_element = getElementById('barrier');
         var empty = isNaN(parseFloat(barrier_element.value)) || parseFloat(barrier_element.value) === 0;
+        var barrier_high_element = getElementById('barrier_high');
+
         if (isVisible(barrier_element) && empty) {
             barrier_element.classList.add('error-field');
         } else {
             barrier_element.classList.remove('error-field');
+        }
+
+        if (isVisible(barrier_high_element)) {
+            var barrier_low_element = getElementById('barrier_low');
+            var error_node = getElementById('barrier_high_error');
+            var is_high_barrier_greater = +barrier_high_element.value > +barrier_low_element.value;
+            barrier_high_element.classList[is_high_barrier_greater ? 'remove' : 'add']('error-field');
+            error_node.classList[is_high_barrier_greater ? 'add' : 'remove']('invisible');
         }
     };
 
@@ -10730,17 +10746,17 @@ var TickDisplay = function () {
         if (reset_spot_plotted || !chart) return;
 
         var is_resetcall = contract.contract_type === 'RESETCALL';
-        var entry_barrier = +contract.entry_spot;
-        var reset_barrier = +r_barrier || +barrier;
+        var entry_barrier = contract.entry_spot;
+        var reset_barrier = r_barrier || contract.barrier;
 
-        if (!entry_barrier || !reset_barrier) return;
+        if (!+entry_barrier || !+reset_barrier) return;
 
-        if (entry_barrier !== reset_barrier) {
+        if (+entry_barrier !== +reset_barrier) {
             removePlotLine('tick-barrier', 'y');
 
             chart.yAxis[0].addPlotLine({
                 id: 'tick-reset-barrier',
-                value: reset_barrier,
+                value: +reset_barrier,
                 label: { text: localize('Reset Barrier') + ' (' + addComma(reset_barrier) + ')', align: 'right', x: -60, y: is_resetcall ? 15 : -5 },
                 color: 'green',
                 width: 2,
@@ -10748,7 +10764,7 @@ var TickDisplay = function () {
             });
             chart.yAxis[0].addPlotLine({
                 id: 'tick-barrier',
-                value: entry_barrier,
+                value: +entry_barrier,
                 label: { text: localize('Barrier') + ' (' + addComma(entry_barrier) + ')', align: 'right', x: -60, y: is_resetcall ? -5 : 15 },
                 color: 'green',
                 width: 2,
@@ -13653,7 +13669,8 @@ var Purchase = function () {
                     updateValues.updatePurchaseStatus(0, -cost_value, localize('This contract lost'));
                 }
                 if (tick_config.is_tick_high || tick_config.is_tick_low) {
-                    CommonFunctions.elementTextContent(CommonFunctions.getElementById('contract_highlowtick'), localize('Tick [_1] is the ' + (tick_config.is_tick_high ? 'highest' : 'lowest') + ' tick', [tick_config.winning_tick_number]));
+                    var is_won = +tick_config.selected_tick_number === +tick_config.winning_tick_number;
+                    CommonFunctions.elementTextContent(CommonFunctions.getElementById('contract_highlowtick'), localize('Tick [_1] is ' + (is_won ? '' : 'not') + ' the ' + (tick_config.is_tick_high ? 'highest' : 'lowest') + ' tick', [tick_config.selected_tick_number]));
                 }
             }
         }
@@ -21364,9 +21381,7 @@ var createLanguageDropDown = function createLanguageDropDown(website_status) {
     });
     var $select_language = $languages.find(select_language_id);
     languages.forEach(function (language) {
-        if (!/es/i.test(language)) {
-            $select_language.append($('<li/>', { class: language, text: mapCodeToLanguage(language) }));
-        }
+        $select_language.append($('<li/>', { class: language, text: mapCodeToLanguage(language) }));
     });
 
     $select_language.find('.' + current_language + ':eq(1)').setVisibility(0);
@@ -25966,6 +25981,7 @@ var TradingEvents = function () {
          */
         var low_barrier_element = getElementById('barrier_low');
         low_barrier_element.addEventListener('input', CommonTrading.debounce(function (e) {
+            Barriers.validateBarrier();
             Defaults.set('barrier_low', e.target.value);
             Price.processPriceRequest();
             CommonTrading.submitForm(getElementById('websocket_form'));
@@ -25979,6 +25995,7 @@ var TradingEvents = function () {
          */
         var high_barrier_element = getElementById('barrier_high');
         high_barrier_element.addEventListener('input', CommonTrading.debounce(function (e) {
+            Barriers.validateBarrier();
             Defaults.set('barrier_high', e.target.value);
             Price.processPriceRequest();
             CommonTrading.submitForm(getElementById('websocket_form'));
@@ -30504,7 +30521,7 @@ var MetaTraderUI = function () {
             var type = acc_type.split('_').slice(1).join('_');
             var title = accounts_info[acc_type].short_title;
             $acc.find('.mt5_type_box').attr({ id: 'rbtn_' + type, 'data-acc-type': type }).find('img').attr('src', urlForStatic('/images/pages/metatrader/icons/acc_' + title.toLowerCase().replace(/\s/g, '_').replace('mam_', '') + '.svg'));
-            $acc.find('p').text(title);
+            $acc.find('p').text(localize(title));
             (/mam/.test(acc_type) ? $acc_template_mam : $acc_template_mt).append($acc);
         });
         $templates.find('.hl-types-of-accounts').setVisibility(count > 1);
