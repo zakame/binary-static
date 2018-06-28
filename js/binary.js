@@ -203,7 +203,7 @@ var findParent = function findParent(el, selector) {
 
 var static_hash = void 0;
 var getStaticHash = function getStaticHash() {
-    static_hash = static_hash || (document.querySelector('script[src*="vendor.min.js"]').getAttribute('src') || '').split('?')[1];
+    static_hash = static_hash || (document.querySelector('script[src*="binary.min.js"],script[src*="binary.js"]').getAttribute('src') || '').split('?')[1];
     return static_hash;
 };
 
@@ -1859,7 +1859,10 @@ var Header = function () {
     var metatraderMenuItemVisibility = function metatraderMenuItemVisibility() {
         BinarySocket.wait('landing_company', 'get_account_status').then(function () {
             if (MetaTrader.isEligible() && !Client.isJPClient()) {
-                getElementById('user_menu_metatrader').setVisibility(1);
+                var mt_visibility = document.getElementsByClassName('mt_visibility');
+                applyToAllElements(mt_visibility, function (el) {
+                    el.setVisibility(1);
+                });
             }
         });
     };
@@ -4142,6 +4145,7 @@ module.exports = Tick;
 
 
 var moment = __webpack_require__(9);
+var getLanguage = __webpack_require__(16).get;
 var LocalStore = __webpack_require__(6).LocalStore;
 var getPropertyValue = __webpack_require__(1).getPropertyValue;
 var getStaticHash = __webpack_require__(1).getStaticHash;
@@ -4167,10 +4171,12 @@ var isEmptyObject = __webpack_require__(1).isEmptyObject;
 var SocketCache = function () {
     // keys are msg_type
     // expire: how long to keep the value (in minutes)
-    // map_to: if presents, stores the response based on the value of the provided key in the echo_req
+    // map_to: to store different responses of the same key, should be array of:
+    //     string  : the property value from echo_req
+    //     function: return value of the function
     var config = {
         payout_currencies: { expire: 10 },
-        active_symbols: { expire: 10, map_to: ['product_type', 'landing_company'] },
+        active_symbols: { expire: 10, map_to: ['product_type', 'landing_company', getLanguage] },
         contracts_for: { expire: 10, map_to: ['contracts_for', 'product_type', 'currency'] },
         exchange_rates: { expire: 60, map_to: ['base_currency'] }
     };
@@ -4237,7 +4243,8 @@ var SocketCache = function () {
 
         if (key && !isEmptyObject(source_obj)) {
             ((config[key] || {}).map_to || []).forEach(function (map_key) {
-                key += map_key ? '_' + (source_obj[map_key] || '') : '';
+                var value = typeof map_key === 'function' ? map_key() : source_obj[map_key];
+                key += map_key ? '_' + (value || '') : '';
             });
         }
 
@@ -6546,6 +6553,7 @@ var ViewPopup = function () {
         if (is_ended) {
             contractEnded();
             if (!contract.tick_count) Highchart.showChart(contract, 'update');else TickDisplay.updateChart({ is_sold: true }, contract);
+            containerSetText('trade_details_live_remaining', '-');
             Clock.setExternalTimer(); // stop timer
         } else {
             $container.find('#notice_ongoing').setVisibility(1);
@@ -6591,9 +6599,12 @@ var ViewPopup = function () {
     };
 
     var contractEnded = function contractEnded() {
-        getElementById('trade_details_live_date').parentNode.setVisibility(0);
+        var el_live_date = getElementById('trade_details_live_date');
+        if (el_live_date.parentNode) {
+            el_live_date.parentNode.setVisibility(0);
+        }
 
-        containerSetText('trade_details_current_title', localize(contract.status === 'sold' || contract.sell_spot_time < contract.date_expiry ? 'Contract Sold' : 'Contract Expiry'));
+        containerSetText('trade_details_current_title', 'Contract Result');
         containerSetText('trade_details_indicative_label', localize('Price'));
         if (Lookback.isLookback(contract.contract_type)) {
             containerSetText('trade_details_spot_label', localize('Close'));
@@ -9612,6 +9623,7 @@ var getPropertyValue = __webpack_require__(1).getPropertyValue;
 
 var Durations = function () {
     var selected_duration = {};
+    var smallest_duration = {};
     var has_end_date = 0;
 
     var displayDurations = function displayDurations(time_start_val) {
@@ -9718,6 +9730,11 @@ var Durations = function () {
             return commonTrading.durationOrder(a) > commonTrading.durationOrder(b) ? 1 : -1;
         });
 
+        smallest_duration = {
+            amount: duration_list[list[0]].dataset.minimum,
+            unit: list[0]
+        };
+
         has_end_date = 0;
         for (var k = 0; k < list.length; k++) {
             var d = list[k];
@@ -9766,8 +9783,11 @@ var Durations = function () {
     var displayEndTime = function displayEndTime() {
         var date_start = CommonFunctions.getElementById('date_start').value;
         var now = !date_start || date_start === 'now';
-        var current_moment = moment(now ? window.time : parseInt(date_start) * 1000).add(5, 'minutes').utc();
-        var expiry_date = Defaults.get('expiry_date') ? moment(Defaults.get('expiry_date')) : current_moment;
+        var current_moment = moment(now ? window.time : parseInt(date_start) * 1000);
+        var smallest_end_time = current_moment.add(smallest_duration.amount, smallest_duration.unit);
+        var default_end_time = Defaults.get('expiry_date');
+
+        var expiry_date = default_end_time && moment(default_end_time).isAfter(smallest_end_time) ? moment(default_end_time) : smallest_end_time.add(5, 'minutes').utc();
         var expiry_time = Defaults.get('expiry_time') || current_moment.format('HH:mm');
         var expiry_date_iso = toISOFormat(expiry_date);
 
@@ -9928,7 +9948,7 @@ var Durations = function () {
                 }
                 DatePicker.init({
                     selector: '#expiry_date',
-                    minDate: 0,
+                    minDate: smallest_duration.unit === 'd' ? 1 : 0,
                     maxDate: 365
                 });
             } else {
@@ -10322,6 +10342,7 @@ var TickDisplay = function () {
 
     var initialize = function initialize(data, options) {
         // setting up globals
+        applicable_ticks = [];
         number_of_ticks = parseInt(data.number_of_ticks);
         display_symbol = data.display_symbol;
         contract_start_ms = parseInt(data.contract_start) * 1000;
@@ -22550,8 +22571,11 @@ var Url = __webpack_require__(8);
 var template = __webpack_require__(1).template;
 
 var DepositWithdraw = function () {
+    var default_iframe_height = 700;
+
     var cashier_type = void 0,
         token = void 0,
+        $iframe = void 0,
         $loading = void 0;
 
     var container = '#deposit_withdraw';
@@ -22747,18 +22771,31 @@ var DepositWithdraw = function () {
                     showError('custom_error', error.message);
             }
         } else {
-            var $iframe = $(container).find('iframe');
-            if (Currency.isCryptocurrency(Client.get('currency'))) {
-                $iframe.css('height', '700px');
-            }
             if (/^BCH/.test(Client.get('currency'))) {
                 getElementById('message_bitcoin_cash').setVisibility(1);
             }
+
+            $iframe = $(container).find('#cashier_iframe');
+
+            if (Currency.isCryptocurrency(Client.get('currency'))) {
+                $iframe.height(default_iframe_height);
+            } else {
+                // Automatically adjust iframe height based on contents
+                window.addEventListener('message', setFrameHeight, false);
+            }
+
             $iframe.attr('src', response.cashier).parent().setVisibility(1);
+
             setTimeout(function () {
                 // wait for iframe contents to load before removing loading bar
                 $loading.remove();
             }, 1000);
+        }
+    };
+
+    var setFrameHeight = function setFrameHeight(e) {
+        if (!/www\.binary\.com/i.test(e.origin)) {
+            $iframe.height(+e.data || default_iframe_height);
         }
     };
 
@@ -22791,8 +22828,13 @@ var DepositWithdraw = function () {
         });
     };
 
+    var onUnload = function onUnload() {
+        window.removeEventListener('message', setFrameHeight);
+    };
+
     return {
-        onLoad: onLoad
+        onLoad: onLoad,
+        onUnload: onUnload
     };
 }();
 
@@ -24457,7 +24499,7 @@ var Highchart = function () {
 
     var initOnce = function initOnce() {
         chart = options = response_id = contract = request = min_point = max_point = '';
-        lines_drawn = [];
+        lines_drawn = new Set();
 
         is_initialized = is_chart_delayed = is_chart_subscribed = stop_streaming = is_response_id_set = is_contracts_for_send = is_history_send = is_entry_tick_barrier_selected = false;
     };
@@ -24900,20 +24942,18 @@ var Highchart = function () {
     // calculate where to display the maximum value of the x-axis of the chart for line chart
     var getMaxHistory = function getMaxHistory(history_times) {
         var end = end_time;
-        if (sell_spot_time && (sell_time || sell_spot_time) < end_time) {
-            end = sell_spot_time;
+        if (sell_time && sell_time < end_time) {
+            end = sell_time;
         } else if (exit_tick_time) {
             end = exit_tick_time;
         }
 
         var history_times_length = history_times.length;
         if (is_settleable || is_sold) {
-            for (var i = history_times_length - 1; i >= 0; i--) {
-                if (parseInt(history_times[i]) === end) {
-                    max_point = parseInt(history_times[i === history_times_length - 1 ? i : i + 1]);
-                    break;
-                }
-            }
+            var i = history_times.findIndex(function (time) {
+                return +time > end;
+            });
+            max_point = i > 0 ? +history_times[i] : end_time;
         }
         setMaxForDelayedChart(history_times, history_times_length);
     };
@@ -24973,7 +25013,7 @@ var Highchart = function () {
     };
 
     var drawLineX = function drawLineX(properties) {
-        if (chart && properties.value && !new RegExp(properties.value).test(lines_drawn)) {
+        if (chart && properties.value && !lines_drawn.has(properties.value)) {
             addPlotLine({
                 value: properties.value * 1000,
                 label: properties.label || '',
@@ -24981,7 +25021,7 @@ var Highchart = function () {
                 dashStyle: properties.dash_style || '',
                 color: properties.color || ''
             }, 'x');
-            lines_drawn.push(properties.value);
+            lines_drawn.add(properties.value);
         }
     };
 
@@ -25008,7 +25048,7 @@ var Highchart = function () {
     };
 
     var setStopStreaming = function setStopStreaming() {
-        if (chart && (is_sold || is_settleable)) {
+        if (chart && (is_sold || is_settleable) && (isSoldBeforeExpiry() ? sell_time : end_time)) {
             var data = getPropertyValue(getPropertyValue(chart, ['series'])[0], ['options', 'data']);
             if (data && data.length > 0) {
                 var last_data = data[data.length - 1];
@@ -25020,10 +25060,6 @@ var Highchart = function () {
                 var last = parseInt(last_data.x || last_data[0]);
                 if (last > end_time * 1000 || last > (sell_time || sell_spot_time) * 1000) {
                     stop_streaming = true;
-                } else {
-                    // add a null point if the last tick is before end time to bring end time line into view
-                    var time = isSoldBeforeExpiry() ? sell_time || sell_spot_time : end_time;
-                    chart.series[0].addPoint({ x: ((time || window.time.unix()) + margin) * 1000, y: null });
                 }
             }
         }
