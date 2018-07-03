@@ -18341,7 +18341,7 @@ var BinaryLoader = function () {
 
     var error_messages = {
         login: function login() {
-            return localize('Please [_1]log in[_2] or [_3]sign up[_2] to view this page.', ['<a href="' + 'javascript:;' + '">', '</a>', '<a href="' + urlFor('signup') + '">']);
+            return localize('Please [_1]log in[_2] or [_3]sign up[_2] to view this page.', ['<a href="' + 'javascript:;' + '">', '</a>', '<a href="' + urlFor('new-account') + '">']);
         },
         only_virtual: 'Sorry, this feature is available to virtual accounts only.',
         only_real: 'This feature is not relevant to virtual-money accounts.'
@@ -20559,10 +20559,10 @@ var PaymentAgentList = __webpack_require__(272);
 var PaymentAgentWithdraw = __webpack_require__(273);
 var Endpoint = __webpack_require__(274);
 var MBTradePage = __webpack_require__(277);
-var EconomicCalendar = __webpack_require__(280);
-var AssetIndexUI = __webpack_require__(279);
-var TradingTimesUI = __webpack_require__(282);
-var Signup = __webpack_require__(283);
+var EconomicCalendar = __webpack_require__(281);
+var AssetIndexUI = __webpack_require__(280);
+var TradingTimesUI = __webpack_require__(283);
+var NewAccount = __webpack_require__(278);
 var TradePage = __webpack_require__(292);
 var Authenticate = __webpack_require__(293);
 var ChangePassword = __webpack_require__(294);
@@ -20654,7 +20654,6 @@ var pages_config = {
     securityws: { module: Settings, is_authenticated: true },
     self_exclusionws: { module: SelfExclusion, is_authenticated: true, only_real: true },
     settingsws: { module: Settings, is_authenticated: true },
-    signup: { module: Signup, not_authenticated: true },
     statementws: { module: Statement, is_authenticated: true, needs_currency: true },
     tnc_approvalws: { module: TNCApproval, is_authenticated: true, only_real: true },
     top_up_virtualws: { module: TopUpVirtual, is_authenticated: true, only_virtual: true },
@@ -20679,6 +20678,7 @@ var pages_config = {
     'ib-signup': { module: TabSelector },
     'job-details': { module: JobDetails },
     'metals': { module: GetStarted.Metals },
+    'new-account': { module: NewAccount, not_authenticated: true },
     'open-positions': { module: StaticPages.OpenPositions },
     'open-source-projects': { module: StaticPages.OpenSourceProjects },
     'payment-agent': { module: StaticPages.PaymentAgent },
@@ -23683,6 +23683,94 @@ module.exports = MBTradePage;
 "use strict";
 
 
+var BinarySocket = __webpack_require__(5);
+var FormManager = __webpack_require__(18);
+var Login = __webpack_require__(51);
+var getElementById = __webpack_require__(4).getElementById;
+var localize = __webpack_require__(2).localize;
+
+var NewAccount = function () {
+    var clients_country = void 0,
+        $google_btn = void 0,
+        $login_btn = void 0,
+        $verify_email = void 0;
+
+    var form_id = '#signup_form';
+
+    var onLoad = function onLoad() {
+        getElementById('footer').setVisibility(0); // always hide footer in this page
+
+        $google_btn = $('#google-signup');
+        $login_btn = $('#login');
+        $verify_email = $('#verify_email');
+
+        BinarySocket.wait('website_status').then(function (response) {
+            clients_country = response.website_status.clients_country;
+
+            FormManager.init(form_id, [{ selector: '#email', validations: ['req', 'email'], request_field: 'verify_email' }, { request_field: 'type', value: 'account_opening' }]);
+            FormManager.handleSubmit({
+                form_selector: form_id,
+                fnc_response_handler: verifyEmailHandler,
+                fnc_additional_check: checkCountry
+            });
+            $('.error-msg').addClass('center-text'); // this element exist only after calling FormManager.init
+        });
+
+        $google_btn.on('click', function (e) {
+            e.preventDefault();
+            window.location.href = Login.socialLoginUrl('google');
+        });
+        $login_btn.on('click', function (e) {
+            e.preventDefault();
+            Login.redirectToLogin();
+        });
+    };
+
+    var verifyEmailHandler = function verifyEmailHandler(response) {
+        if (response.error) {
+            showError('error', response.error.message);
+        } else {
+            $(form_id).setVisibility(0);
+            $verify_email.setVisibility(1);
+        }
+    };
+
+    var checkCountry = function checkCountry(req) {
+        if (clients_country !== 'my' || /@binary\.com$/.test(req.verify_email)) {
+            return true;
+        }
+        showError('notice', localize('Sorry, account signup is not available in your country.'));
+        return false;
+    };
+
+    var showError = function showError(type, message) {
+        $(form_id).find('div').html($('<p/>', {
+            class: type + '-msg gr-centered gr-8 gr-12-m',
+            html: message
+        }));
+    };
+
+    var onUnload = function onUnload() {
+        getElementById('footer').setVisibility(1);
+        $google_btn.off('click');
+        $login_btn.off('click');
+    };
+
+    return {
+        onLoad: onLoad,
+        onUnload: onUnload
+    };
+}();
+
+module.exports = NewAccount;
+
+/***/ }),
+/* 279 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
 var AssetIndex = function () {
     var market_columns = void 0;
 
@@ -23767,13 +23855,13 @@ var AssetIndex = function () {
 module.exports = AssetIndex;
 
 /***/ }),
-/* 279 */
+/* 280 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 
-var AssetIndex = __webpack_require__(278);
+var AssetIndex = __webpack_require__(279);
 var BinaryPjax = __webpack_require__(12);
 var isJPClient = __webpack_require__(3).isJPClient;
 var BinarySocket = __webpack_require__(5);
@@ -23914,7 +24002,7 @@ var AssetIndexUI = function () {
 module.exports = AssetIndexUI;
 
 /***/ }),
-/* 280 */
+/* 281 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -23954,7 +24042,7 @@ var EconomicCalendar = function () {
 module.exports = EconomicCalendar;
 
 /***/ }),
-/* 281 */
+/* 282 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -23982,14 +24070,14 @@ var TradingTimes = function () {
 module.exports = TradingTimes;
 
 /***/ }),
-/* 282 */
+/* 283 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 
 var moment = __webpack_require__(9);
-var TradingTimes = __webpack_require__(281);
+var TradingTimes = __webpack_require__(282);
 var isJPClient = __webpack_require__(3).isJPClient;
 var BinarySocket = __webpack_require__(5);
 var Table = __webpack_require__(76);
@@ -24180,94 +24268,6 @@ var TradingTimesUI = function () {
 }();
 
 module.exports = TradingTimesUI;
-
-/***/ }),
-/* 283 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-
-var BinarySocket = __webpack_require__(5);
-var FormManager = __webpack_require__(18);
-var Login = __webpack_require__(51);
-var getElementById = __webpack_require__(4).getElementById;
-var localize = __webpack_require__(2).localize;
-
-var Signup = function () {
-    var clients_country = void 0,
-        $google_btn = void 0,
-        $login_btn = void 0,
-        $verify_email = void 0;
-
-    var form_id = '#signup_form';
-
-    var onLoad = function onLoad() {
-        getElementById('footer').setVisibility(0); // always hide footer in this page
-
-        $google_btn = $('#google-signup');
-        $login_btn = $('#login');
-        $verify_email = $('#verify_email');
-
-        BinarySocket.wait('website_status').then(function (response) {
-            clients_country = response.website_status.clients_country;
-
-            FormManager.init(form_id, [{ selector: '#email', validations: ['req', 'email'], request_field: 'verify_email' }, { request_field: 'type', value: 'account_opening' }]);
-            FormManager.handleSubmit({
-                form_selector: form_id,
-                fnc_response_handler: verifyEmailHandler,
-                fnc_additional_check: checkCountry
-            });
-            $('.error-msg').addClass('center-text'); // this element exist only after calling FormManager.init
-        });
-
-        $google_btn.on('click', function (e) {
-            e.preventDefault();
-            window.location.href = Login.socialLoginUrl('google');
-        });
-        $login_btn.on('click', function (e) {
-            e.preventDefault();
-            Login.redirectToLogin();
-        });
-    };
-
-    var verifyEmailHandler = function verifyEmailHandler(response) {
-        if (response.error) {
-            showError('error', response.error.message);
-        } else {
-            $(form_id).setVisibility(0);
-            $verify_email.setVisibility(1);
-        }
-    };
-
-    var checkCountry = function checkCountry(req) {
-        if (clients_country !== 'my' || /@binary\.com$/.test(req.verify_email)) {
-            return true;
-        }
-        showError('notice', localize('Sorry, account signup is not available in your country.'));
-        return false;
-    };
-
-    var showError = function showError(type, message) {
-        $(form_id).find('div').html($('<p/>', {
-            class: type + '-msg gr-centered gr-8 gr-12-m',
-            html: message
-        }));
-    };
-
-    var onUnload = function onUnload() {
-        getElementById('footer').setVisibility(1);
-        $google_btn.off('click');
-        $login_btn.off('click');
-    };
-
-    return {
-        onLoad: onLoad,
-        onUnload: onUnload
-    };
-}();
-
-module.exports = Signup;
 
 /***/ }),
 /* 284 */
