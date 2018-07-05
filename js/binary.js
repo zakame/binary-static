@@ -2637,7 +2637,7 @@ var commonTrading = function () {
             return duration_config[duration].order;
         },
         durationType: function durationType(duration) {
-            return duration_config[duration].type;
+            return (duration_config[duration] || {}).type;
         },
         clean: function clean() {
             $chart = null;contracts_element = null;
@@ -6501,13 +6501,8 @@ var ViewPopup = function () {
         containerSetText('trade_details_ref_id', contract.transaction_ids.buy + ' (' + localize('Buy') + ') ' + (contract.transaction_ids.sell ? '<br>' + contract.transaction_ids.sell + ' (' + localize('Sell') + ')' : ''));
         containerSetText('trade_details_indicative_price', indicative_price ? formatMoney(contract.currency, indicative_price) : '-');
 
-        var profit_loss = void 0,
-            percentage = void 0;
-
         if (final_price) {
-            profit_loss = final_price - contract.buy_price;
-            percentage = addComma(profit_loss * 100 / contract.buy_price, 2);
-            containerSetText('trade_details_profit_loss', formatMoney(contract.currency, profit_loss) + '<span class="percent">(' + (percentage > 0 ? '+' : '') + percentage + '%)</span>', { class: profit_loss >= 0 ? 'profit' : 'loss' });
+            containerSetText('trade_details_profit_loss', formatMoney(contract.currency, contract.profit) + '<span class="percent">(' + (contract.profit_percentage > 0 ? '+' : '') + addComma(contract.profit_percentage, 2) + '%)</span>', { class: contract.profit >= 0 ? 'profit' : 'loss' });
         } else {
             containerSetText('trade_details_profit_loss', '-', { class: 'loss' });
         }
@@ -9784,10 +9779,13 @@ var Durations = function () {
         var date_start = CommonFunctions.getElementById('date_start').value;
         var now = !date_start || date_start === 'now';
         var current_moment = moment(now ? window.time : parseInt(date_start) * 1000);
-        var smallest_end_time = current_moment.add(smallest_duration.amount, smallest_duration.unit);
+        var smallest_end_time = current_moment.clone().add(smallest_duration.amount, smallest_duration.unit);
+        var plus_5_min = current_moment.clone().add(5, 'minutes');
+        // for contracts with min. duration of 1 day, the endtime should be the min. duration, else endtime is current time plus 5 mins
+        var selected_end_time = smallest_end_time.isAfter(plus_5_min) ? smallest_end_time : plus_5_min;
         var default_end_time = Defaults.get('expiry_date');
 
-        var expiry_date = default_end_time && moment(default_end_time).isAfter(smallest_end_time) ? moment(default_end_time) : smallest_end_time.add(5, 'minutes').utc();
+        var expiry_date = default_end_time && moment(default_end_time).isAfter(smallest_end_time) ? moment(default_end_time) : selected_end_time.utc();
         var expiry_time = Defaults.get('expiry_time') || current_moment.format('HH:mm');
         var expiry_date_iso = toISOFormat(expiry_date);
 
@@ -10612,12 +10610,12 @@ var TickDisplay = function () {
                 if (show_contract_result) {
                     $('#' + id_render).css('background-color', winning_color);
                 }
-                updatePurchaseStatus(payout, price, localize('This contract won'));
+                updatePurchaseStatus(payout, price, contract.profit, localize('This contract won'));
             } else if (contract.status === 'lost') {
                 if (show_contract_result) {
                     $('#' + id_render).css('background-color', losing_color);
                 }
-                updatePurchaseStatus(0, -price, localize('This contract lost'));
+                updatePurchaseStatus(0, -price, contract.profit, localize('This contract lost'));
             }
 
             addSellSpot();
@@ -10923,7 +10921,7 @@ var Client = __webpack_require__(3);
 var formatMoney = __webpack_require__(7).formatMoney;
 var localize = __webpack_require__(2).localize;
 
-var updatePurchaseStatus = function updatePurchaseStatus(final_price, pnl, contract_status) {
+var updatePurchaseStatus = function updatePurchaseStatus(final_price, pnl, profit, contract_status) {
     $('#contract_purchase_heading').text(localize(contract_status));
     var $payout = $('#contract_purchase_payout');
     var $cost = $('#contract_purchase_cost');
@@ -10935,7 +10933,7 @@ var updatePurchaseStatus = function updatePurchaseStatus(final_price, pnl, contr
     if (!final_price) {
         $profit.html($('<div/>', { text: localize('Loss') }).append($('<p/>', { html: formatMoney(currency, pnl) })));
     } else {
-        $profit.html($('<div/>', { text: localize('Profit') }).append($('<p/>', { html: formatMoney(currency, final_price - pnl) })));
+        $profit.html($('<div/>', { text: localize('Profit') }).append($('<p/>', { html: formatMoney(currency, profit) })));
         updateContractBalance(Client.get('balance'));
     }
 };
@@ -13368,10 +13366,12 @@ var Process = function () {
     };
 
     var displayEquals = function displayEquals() {
+        var expiry_type = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : 'duration';
+
         var formname = Defaults.get('formname');
         var el_equals = document.getElementById('callputequal');
         var durations = getPropertyValue(Contract.durations(), [commonTrading.durationType(Defaults.get('duration_units'))]) || [];
-        if (/^(callputequal|risefall)$/.test(formname) && 'callputequal' in durations && hasCallPutEqual()) {
+        if (/^(callputequal|risefall)$/.test(formname) && ('callputequal' in durations || expiry_type === 'endtime') && hasCallPutEqual()) {
             if (+Defaults.get('is_equal')) {
                 el_equals.checked = true;
             }
@@ -13434,6 +13434,7 @@ var Process = function () {
             Defaults.remove('expiry_date', 'expiry_time', 'end_date');
             Durations.validateMinDurationAmount();
         }
+        displayEquals(validated_value);
 
         return make_price_request;
     };
@@ -13454,6 +13455,7 @@ var Process = function () {
     };
 
     return {
+        displayEquals: displayEquals,
         processActiveSymbols: processActiveSymbols,
         processMarket: processMarket,
         processContract: processContract,
@@ -13502,6 +13504,7 @@ var Purchase = function () {
 
     var payout_value = void 0,
         cost_value = void 0,
+        profit_value = void 0,
         status = void 0;
 
     var display = function display(details) {
@@ -13570,7 +13573,7 @@ var Purchase = function () {
             payout_value = +receipt.payout;
             cost_value = receipt.buy_price;
 
-            var profit_value = payout_value ? formatMoney(currency, payout_value - cost_value) : undefined;
+            var potential_profit_value = payout_value ? formatMoney(currency, payout_value - cost_value) : undefined;
 
             CommonFunctions.elementInnerHtml(cost, localize('Total Cost') + ' <p>' + formatMoney(currency, cost_value) + '</p>');
             if (isLookback(contract_type)) {
@@ -13579,11 +13582,11 @@ var Purchase = function () {
             } else if (isCallputspread(contract_type)) {
                 profit.setVisibility(1);
                 CommonFunctions.elementInnerHtml(payout, localize('Maximum Payout') + ' <p>' + formatMoney(currency, payout_value) + '</p>');
-                CommonFunctions.elementInnerHtml(profit, localize('Maximum Profit') + ' <p>' + profit_value + '</p>');
+                CommonFunctions.elementInnerHtml(profit, localize('Maximum Profit') + ' <p>' + potential_profit_value + '</p>');
             } else {
                 profit.setVisibility(1);
                 CommonFunctions.elementInnerHtml(payout, localize('Potential Payout') + ' <p>' + formatMoney(currency, payout_value) + '</p>');
-                CommonFunctions.elementInnerHtml(profit, localize('Potential Profit') + ' <p>' + profit_value + '</p>');
+                CommonFunctions.elementInnerHtml(profit, localize('Potential Profit') + ' <p>' + potential_profit_value + '</p>');
             }
 
             updateValues.updateContractBalance(receipt.balance_after);
@@ -13670,6 +13673,7 @@ var Purchase = function () {
                     var contract = response.proposal_open_contract;
                     if (contract) {
                         status = contract.status;
+                        profit_value = contract.profit;
                         TickDisplay.setStatus(contract);
                         if (contract.sell_spot_time && +contract.sell_spot_time < contract.date_expiry) {
                             TickDisplay.updateChart({ is_sold: true }, contract);
@@ -13698,9 +13702,9 @@ var Purchase = function () {
             if (!new RegExp(status).test(spots.classList)) {
                 spots.className = status;
                 if (status === 'won') {
-                    updateValues.updatePurchaseStatus(payout_value, cost_value, localize('This contract won'));
+                    updateValues.updatePurchaseStatus(payout_value, cost_value, profit_value, localize('This contract won'));
                 } else if (status === 'lost') {
-                    updateValues.updatePurchaseStatus(0, -cost_value, localize('This contract lost'));
+                    updateValues.updatePurchaseStatus(0, -cost_value, profit_value, localize('This contract lost'));
                 }
                 if (tick_config.is_tick_high || tick_config.is_tick_low) {
                     var is_won = +tick_config.selected_tick_number === +tick_config.winning_tick_number;
@@ -20654,6 +20658,7 @@ var pages_config = {
     securityws: { module: Settings, is_authenticated: true },
     self_exclusionws: { module: SelfExclusion, is_authenticated: true, only_real: true },
     settingsws: { module: Settings, is_authenticated: true },
+    signup: { module: TabSelector }, // for /affiliate/signup.html
     statementws: { module: Statement, is_authenticated: true, needs_currency: true },
     tnc_approvalws: { module: TNCApproval, is_authenticated: true, only_real: true },
     top_up_virtualws: { module: TopUpVirtual, is_authenticated: true, only_virtual: true },
@@ -26004,6 +26009,7 @@ var TradingEvents = function () {
                 CommonIndependent.showAssetOpenHours(e.target.value === 'now' ? '' : $(e.target));
                 initTimePicker();
                 var r = Durations.onStartDateChange(e.target.value);
+                Process.displayEquals();
                 if (r >= 0) {
                     Price.processPriceRequest();
                 }
@@ -30251,7 +30257,8 @@ var MetaTraderUI = function () {
         $main_msg = void 0,
         validations = void 0,
         submit = void 0,
-        token = void 0;
+        token = void 0,
+        current_action_ui = void 0;
 
     var accounts_info = MetaTraderConfig.accounts_info;
     var actions_info = MetaTraderConfig.actions_info;
@@ -30403,7 +30410,9 @@ var MetaTraderUI = function () {
     var setCurrentAccount = function setCurrentAccount(acc_type) {
         if (Client.get('mt5_account') && Client.get('mt5_account') !== acc_type) return;
 
-        displayAccountDescription(acc_type);
+        if (current_action_ui !== 'new_account') {
+            displayAccountDescription(acc_type);
+        }
 
         if (accounts_info[acc_type].info) {
             // Update account info
@@ -30424,7 +30433,9 @@ var MetaTraderUI = function () {
                 $(this).html(typeof mapping[key] === 'function' ? mapping[key]() : info);
             });
             // $container.find('.act_cashier').setVisibility(!types_info[acc_type].is_demo);
-            $container.find('.has-account').setVisibility(1);
+            if (current_action_ui !== 'new_account') {
+                $container.find('.has-account').setVisibility(1);
+            }
         } else {
             $detail.find('.acc-info, .acc-actions').setVisibility(0);
         }
@@ -30565,6 +30576,8 @@ var MetaTraderUI = function () {
     // ----- New Account -----
     // -----------------------
     var handleNewAccountUI = function handleNewAccountUI(action, acc_type, $target) {
+        current_action_ui = action;
+
         var is_new_account = /new_account/.test(action);
         var $acc_actions = $container.find('.acc-actions');
         $acc_actions.find('.new-account').setVisibility(is_new_account);
