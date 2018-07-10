@@ -6079,45 +6079,41 @@ var TradingAnalysis = function () {
 
         var images = {
             risefall: {
-                image1: 'rise-fall-1.svg',
-                image2: 'rise-fall-2.svg'
+                image1: 'rises.svg',
+                image2: 'falls.svg'
             },
             higherlower: {
-                image1: 'higher-lower-1.svg',
-                image2: 'higher-lower-2.svg'
+                image1: 'higher.svg',
+                image2: 'lower.svg'
             },
             touchnotouch: {
-                image1: 'touch-notouch-1.svg',
-                image2: 'touch-notouch-2.svg'
+                image1: 'touch.svg',
+                image2: 'no-touch.svg'
             },
             endsinout: {
-                image1: 'in-out-1.svg',
-                image2: 'in-out-2.svg'
+                image1: 'ends-between.svg',
+                image2: 'ends-outside.svg'
             },
             staysinout: {
-                image1: 'in-out-3.svg',
-                image2: 'in-out-4.svg'
-            },
-            updown: {
-                image1: 'up-down-1.svg',
-                image2: 'up-down-2.svg'
+                image1: 'stays-between.svg',
+                image2: 'goes-outside.svg'
             },
             evenodd: {
-                image1: 'evenodd-1.svg',
-                image2: 'evenodd-2.svg'
+                image1: 'even.svg',
+                image2: 'odd.svg'
             },
             overunder: {
-                image1: 'overunder-1.svg',
-                image2: 'overunder-2.svg'
+                image1: 'over.svg',
+                image2: 'under.svg'
             },
             lookbackhigh: {
-                image1: 'close-high-image.svg'
+                image1: 'high-close.svg'
             },
             lookbacklow: {
-                image1: 'close-low-image.svg'
+                image1: 'close-low.svg'
             },
             lookbackhighlow: {
-                image1: 'high-low-image.svg'
+                image1: 'high-low.svg'
             },
             reset: {
                 image1: 'reset-call.svg',
@@ -6128,13 +6124,13 @@ var TradingAnalysis = function () {
                 image2: 'put-spread.svg'
             },
             highlowticks: {
-                image1: 'high-low-1.svg',
-                image2: 'high-low-2.svg'
+                image1: 'high-tick.svg',
+                image2: 'low-tick.svg'
             }
         };
 
         if (images[form_name]) {
-            var image_path = Url.urlForStatic('images/pages/trade-explanation/' + (getLanguage() === 'JA' ? 'ja/' : ''));
+            var image_path = Url.urlForStatic('images/pages/trade-explanation/' + getLanguage().toLowerCase() + '/');
             $container.find('#explanation_image_1').attr('src', image_path + images[form_name].image1);
             if (images[form_name].image2) {
                 $container.find('#explanation_image_2').attr('src', image_path + images[form_name].image2).parent().setVisibility(1);
@@ -26672,46 +26668,37 @@ var _initialiseProps = function _initialiseProps() {
     };
 
     this.stickyHeader = function (position) {
-        var curr = void 0,
-            prev = void 0,
-            next = void 0;
         var market_nodes = _this2.references.market_nodes;
 
         var market_keys = Object.keys(market_nodes);
-        var TITLE_HEIGHT = 40;
-        Object.values(market_nodes).forEach(function (node, idx) {
-            if (node.dataset.offsetTop <= position && +node.dataset.offsetHeight + +node.dataset.offsetTop > position) {
-                curr = node;
-                prev = idx > 0 ? market_nodes[market_keys[idx - 1]] : null;
-                next = idx < market_keys.length ? market_nodes[market_keys[idx + 1]] : null;
-            }
-        });
-
         var class_sticky = 'sticky';
         var class_under = 'put_under';
+        var TITLE_HEIGHT = 40;
         var DEFAULT_TOP = _this2.references.list.offsetTop;
 
-        if (curr) {
-            curr.children[0].removeAttribute('style');
-            curr.removeAttribute('style');
-            curr.children[0].classList.remove(class_under);
-            var diff = +curr.dataset.offsetHeight + +curr.dataset.offsetTop - position;
-            if (diff > 0 && diff < TITLE_HEIGHT) {
-                curr.children[0].style.top = DEFAULT_TOP - (TITLE_HEIGHT - diff) + 'px';
-                curr.children[0].classList.add(class_under);
-            }
-            curr.children[0].classList.add(class_sticky);
-            curr.style.paddingTop = TITLE_HEIGHT + 'px';
+        var current_viewed_node = Object.values(market_nodes).find(function (node) {
+            return node.dataset.offsetTop <= position && +node.dataset.offsetHeight + +node.dataset.offsetTop > position;
+        });
+
+        if (current_viewed_node !== _this2.references.last_viewed_node) {
+            Object.values(market_nodes).forEach(function (node) {
+                node.removeAttribute('style');
+                node.children[0].removeAttribute('style');
+                node.children[0].classList.remove(class_under, class_sticky);
+            });
+            _this2.references.last_viewed_node = current_viewed_node;
         }
-        if (prev) {
-            prev.removeAttribute('style');
-            prev.children[0].removeAttribute('style');
-            prev.children[0].classList.remove(class_under, class_sticky);
+
+        var diff = +current_viewed_node.dataset.offsetHeight + +current_viewed_node.dataset.offsetTop - position;
+        if (diff > 0 && diff < TITLE_HEIGHT) {
+            current_viewed_node.children[0].style.top = DEFAULT_TOP - (TITLE_HEIGHT - diff) + 'px';
+            current_viewed_node.children[0].classList.add(class_under);
+        } else {
+            current_viewed_node.children[0].removeAttribute('style');
+            current_viewed_node.children[0].classList.remove(class_under);
         }
-        if (next) {
-            next.children[0].classList.remove(class_sticky, class_under);
-            next.removeAttribute('style');
-        }
+        current_viewed_node.children[0].classList.add(class_sticky);
+        current_viewed_node.style.paddingTop = TITLE_HEIGHT + 'px';
     };
 
     this.saveMarketRef = function (market, node) {
@@ -26785,7 +26772,7 @@ var _initialiseProps = function _initialiseProps() {
 
         var node = _this2.references.market_nodes[key];
         var offset = node.dataset.offsetTop - list.offsetTop;
-        scrollToPosition(list, offset, 250);
+        scrollToPosition(list, offset, 0);
     };
 };
 
@@ -27070,8 +27057,11 @@ var showLoadingImage = __webpack_require__(1).showLoadingImage;
 
 var Authenticate = function () {
     var is_action_needed = false;
-    var is_any_upload_successful = false;
-    var arr_duplicated_files = [];
+    var is_any_upload_failed = false;
+    var file_checks = {};
+    var $button = void 0,
+        $submit_status = void 0,
+        $submit_table = void 0;
 
     var onLoad = function onLoad() {
         BinarySocket.send({ get_account_status: 1 }).then(function (response) {
@@ -27100,13 +27090,16 @@ var Authenticate = function () {
     };
 
     var init = function init() {
+        file_checks = {};
+        $submit_status = $('.submit-status');
+        $submit_table = $submit_status.find('table tbody');
+
         // Setup accordion
         $('.files').accordion({
             heightStyle: 'content',
             collapsible: true,
             active: false
         });
-        var file_checks = {};
         // Setup Date picker
         $('.date-picker').datepicker({
             dateFormat: 'yy-mm-dd',
@@ -27116,280 +27109,338 @@ var Authenticate = function () {
         });
 
         $('.file-picker').on('change', onFileSelected);
+    };
 
-        /**
-         * Listens for file changes.
-         * @param {*} event
-         */
-        function onFileSelected(event) {
-            if (!event.target.files || !event.target.files.length) {
-                resetLabel(event);
-                return;
-            }
-            // Change submit button state
-            showSubmit();
-            var $e = $(event.target);
-            var file_name = event.target.files[0].name || '';
-            var display_name = file_name.length > 10 ? file_name.slice(0, 5) + '..' + file_name.slice(-5) : file_name;
+    /**
+     * Listens for file changes.
+     * @param {*} event
+     */
+    var onFileSelected = function onFileSelected(event) {
+        if (!event.target.files || !event.target.files.length) {
+            resetLabel(event);
+            return;
+        }
+        var $target = $(event.target);
+        var file_name = event.target.files[0].name || '';
+        var display_name = file_name.length > 10 ? file_name.slice(0, 5) + '..' + file_name.slice(-5) : file_name;
 
-            $e.parent().find('label').off('click')
-            // Prevent opening file selector.
-            .on('click', function (e) {
-                if ($(e.target).is('span.remove')) e.preventDefault();
-            }).text(display_name).append($('<span/>', { class: 'remove' })).find('.remove').click(function () {
-                return resetLabel(event);
+        $target.attr('data-status', '').parent().find('label').off('click')
+        // Prevent opening file selector.
+        .on('click', function (e) {
+            if ($(e.target).is('span.remove')) e.preventDefault();
+        }).text(display_name).removeClass('error').addClass('selected').append($('<span/>', { class: 'remove' })).find('.remove').click(function (e) {
+            if ($(e.target).is('span.remove')) resetLabel(event);
+        });
+
+        // Change submit button state
+        enableDisableSubmit();
+    };
+
+    // Reset file-selector label
+    var resetLabel = function resetLabel(event) {
+        var $target = $(event.target);
+        var default_text = toTitleCase($target.attr('id').split('_')[0]);
+        if (default_text !== 'Add') {
+            default_text = default_text === 'Back' ? localize('Reverse Side') : localize('Front Side');
+        }
+        fileTracker($target, false);
+        // Remove previously selected file and set the label
+        $target.val('').parent().find('label').text(default_text).removeClass('selected error').append($('<span/>', { class: 'add' }));
+        // Change submit button state
+        enableDisableSubmit();
+    };
+
+    /**
+     * Enables the submit button if any file is selected, also adds the event handler for the button.
+     * Disables the button if it no files are selected.
+     */
+    var enableDisableSubmit = function enableDisableSubmit() {
+        var $not_authenticated = $('#authentication-message > div#not_authenticated');
+        var $files = $not_authenticated.find('input[type="file"]');
+        $button = $not_authenticated.find('#btn_submit');
+
+        var file_selected = $('label[class~="selected"]').length;
+        var has_file_error = $('label[class~="error"]').length;
+
+        if (file_selected && !has_file_error) {
+            if ($button.hasClass('button')) return;
+            $('#resolve_error').setVisibility(0);
+            $button.removeClass('button-disabled').addClass('button').off('click') // To avoid binding multiple click events
+            .click(function () {
+                return submitFiles($files);
             });
-        };
+        } else {
+            if ($button.hasClass('button-disabled')) return;
+            $button.removeClass('button').addClass('button-disabled').off('click');
+        }
+    };
 
-        // Reset file-selector label
-        var resetLabel = function resetLabel(event) {
-            var $e = $(event.target);
-            var default_text = toTitleCase($e.attr('id').split('_')[0]);
-            if (default_text !== 'Add') {
-                default_text = default_text === 'Back' ? localize('Reverse Side') : localize('Front Side');
-            }
-            fileTracker($e, false);
-            // Remove previously selected file and set the label
-            $e.val('').parent().find('label').text(default_text).append($('<span/>', { class: 'add' }));
-            // Change submit button state
-            showSubmit();
-        };
+    var showButtonLoading = function showButtonLoading() {
+        if ($button.length && !$button.find('.barspinner').length) {
+            var $btn_text = $('<span/>', { text: $button.find('span').text(), class: 'invisible' });
+            showLoadingImage($button.find('span'), 'white');
+            $button.find('span').append($btn_text);
+        }
+    };
 
-        /**
-         * Enables the submit button if any file is selected, also adds the event handler for the button.
-         * Disables the button if it no files are selected.
-         */
-        var $button = void 0;
-        var showSubmit = function showSubmit() {
-            var file_selected = false;
-            var $ele = $('#authentication-message > div#not_authenticated');
-            $button = $ele.find('#btn_submit');
-            var $files = $ele.find('input[type="file"]');
+    var removeButtonLoading = function removeButtonLoading() {
+        if ($button.length && $button.find('.barspinner').length) {
+            $button.find('>span').html($button.find('>span>span').text());
+        }
+    };
 
-            // Check if any files are selected or not.
-            $files.each(function (i, e) {
-                if (e.files && e.files.length) {
-                    file_selected = true;
-                }
-            });
-
-            if (file_selected) {
-                if ($button.hasClass('button')) return;
-                $button.removeClass('button-disabled').addClass('button').off('click') // To avoid binding multiple click events
-                .click(function () {
-                    return submitFiles($files);
-                });
-            } else {
-                if ($button.hasClass('button-disabled')) return;
-                $button.removeClass('button').addClass('button-disabled').off('click');
-            }
-        };
-
-        var disableButton = function disableButton() {
-            if ($button.length && !$button.find('.barspinner').length) {
-                var $btn_text = $('<span/>', { text: $button.find('span').text(), class: 'invisible' });
-                showLoadingImage($button.find('span'), 'white');
-                $button.find('span').append($btn_text);
-            }
-        };
-
-        var enableButton = function enableButton() {
-            if ($button.length && $button.find('.barspinner').length) {
-                $button.find('>span').html($button.find('>span>span').text());
-            }
-        };
-
-        /**
-         * On submit button click
-         */
-        var submitFiles = function submitFiles($files) {
-            if ($button.length && $button.find('.barspinner').length) {
-                // it's still in submit process
-                return;
-            }
-            // Disable submit button
-            disableButton();
-            var files = [];
-            arr_duplicated_files = [];
-            is_any_upload_successful = false;
-            $files.each(function (i, e) {
-                if (e.files && e.files.length) {
-                    var $e = $(e);
-                    var type = '' + ($e.attr('data-type') || '').replace(/\s/g, '_').toLowerCase();
-                    var name = $e.attr('data-name');
-                    var $inputs = $e.closest('.fields').find('input[type="text"]');
-                    var file_obj = {
-                        file: e.files[0],
-                        chunkSize: 16384, // any higher than this sends garbage data to websocket currently.
-                        type: type,
-                        name: name
-                    };
-                    if ($inputs.length) {
-                        file_obj.id_number = $($inputs[0]).val();
-                        file_obj.exp_date = $($inputs[1]).val();
-                    }
-                    fileTracker($e, true);
-                    files.push(file_obj);
-                }
-            });
-            processFiles(files);
-        };
-
-        var processFiles = function processFiles(files) {
-            var uploader = new DocumentUploader({ connection: BinarySocket.get() }); // send 'debug: true' here for debugging
-
-            var uploaded = 0;
-            readFiles(files).then(function (arr_files) {
-                var to_upload = arr_files.length;
-                // sequentially send files
-                var uploadFile = function uploadFile() {
-                    uploader.upload(arr_files[uploaded]).then(function (response) {
-                        var is_last_upload = to_upload === uploaded + 1;
-                        onResponse(response, is_last_upload);
-                        if (!is_last_upload) {
-                            uploaded += 1;
-                            uploadFile();
-                        }
-                    }).catch(showError);
+    /**
+     * On submit button click
+     */
+    var submitFiles = function submitFiles($files) {
+        if ($button.length && $button.find('.barspinner').length) {
+            // it's still in submit process
+            return;
+        }
+        // Disable submit button
+        showButtonLoading();
+        var files = [];
+        is_any_upload_failed = false;
+        $submit_table.children().remove();
+        $files.each(function (i, e) {
+            if (e.files && e.files.length) {
+                var $e = $(e);
+                var id = $e.attr('id');
+                var type = '' + ($e.attr('data-type') || '').replace(/\s/g, '_').toLowerCase();
+                var name = $e.attr('data-name');
+                var $inputs = $e.closest('.fields').find('input[type="text"]');
+                var file_obj = {
+                    file: e.files[0],
+                    chunkSize: 16384, // any higher than this sends garbage data to websocket currently.
+                    class: id,
+                    type: type,
+                    name: name
                 };
-                uploadFile();
-            }).catch(showError);
-        };
+                if ($inputs.length) {
+                    file_obj.id_number = $($inputs[0]).val();
+                    file_obj.exp_date = $($inputs[1]).val();
+                }
+                fileTracker($e, true);
+                files.push(file_obj);
 
-        // Returns file promise.
-        var readFiles = function readFiles(files) {
-            var promises = [];
-            files.forEach(function (f) {
-                var fr = new FileReader();
-                var promise = new Promise(function (resolve, reject) {
-                    fr.onload = function () {
-                        var format = (f.file.type.split('/')[1] || (f.file.name.match(/\.([\w\d]+)$/) || [])[1] || '').toUpperCase();
-                        var obj = {
-                            filename: f.file.name,
-                            buffer: fr.result,
-                            documentType: f.type,
-                            documentFormat: format,
-                            documentId: f.id_number || undefined,
-                            expirationDate: f.exp_date || undefined,
-                            chunkSize: f.chunkSize,
-                            passthrough: {
-                                filename: f.file.name,
-                                name: f.name
-                            }
-                        };
+                var display_name = name;
+                if (/front|back/.test(id)) {
+                    display_name += ' - ' + localize(toTitleCase(/front/.test(id) ? 'Front' : 'Reverse') + ' Side');
+                }
 
-                        var error = { message: validate(obj) };
-                        if (error && error.message) reject(error);
+                $submit_table.append($('<tr/>', { id: file_obj.type, class: id }).append($('<td/>', { text: display_name })) // document type, e.g. Passport - Front Side
+                .append($('<td/>', { text: e.files[0].name })) // file name, e.g. sample.pdf
+                .append($('<td/>', { text: localize('Pending'), class: 'status' })) // status of uploading file, first set to Pending
+                );
+            }
+        });
+        $submit_status.setVisibility(1);
+        processFiles(files);
+    };
 
-                        resolve(obj);
-                    };
+    var processFiles = function processFiles(files) {
+        var uploader = new DocumentUploader({ connection: BinarySocket.get() }); // send 'debug: true' here for debugging
 
-                    fr.onerror = function () {
-                        reject('Unable to read file ' + f.file.name);
-                    };
-                    // Reading file.
-                    fr.readAsArrayBuffer(f.file);
+        var idx_to_upload = 0;
+        var is_any_file_error = false;
+        readFiles(files).then(function (response) {
+            response.forEach(function (file) {
+                if (file.message) {
+                    is_any_file_error = true;
+                    showError(file);
+                }
+            });
+            if (is_any_file_error) {
+                return; // don't start submitting files until all front-end validation checks pass
+            }
+
+            var total_to_upload = response.length;
+            var isLastUpload = function isLastUpload() {
+                return total_to_upload === idx_to_upload + 1;
+            };
+            // sequentially send files
+            var uploadFile = function uploadFile() {
+                var $status = $submit_table.find('.' + response[idx_to_upload].passthrough.class + ' .status');
+                $status.text(localize('Submitting') + '...');
+                uploader.upload(response[idx_to_upload]).then(function (api_response) {
+                    onResponse(api_response, isLastUpload());
+                    if (!api_response.error && !api_response.warning) {
+                        $status.text(localize('Submitted')).append($('<span/>', { class: 'checked' }));
+                        $('#' + api_response.passthrough.class).attr('type', 'hidden'); // don't allow users to change submitted files
+                        $('label[for=' + api_response.passthrough.class + '] span').attr('class', 'checked');
+                    }
+                    uploadNextFile();
                 });
+            };
+            var uploadNextFile = function uploadNextFile() {
+                if (!isLastUpload()) {
+                    idx_to_upload += 1;
+                    uploadFile();
+                }
+            };
+            uploadFile();
+        });
+    };
 
-                promises.push(promise);
+    // Returns file promise.
+    var readFiles = function readFiles(files) {
+        var promises = [];
+        files.forEach(function (f) {
+            var fr = new FileReader();
+            var promise = new Promise(function (resolve) {
+                fr.onload = function () {
+                    var $status = $submit_table.find('.' + f.class + ' .status');
+                    $status.text(localize('Checking') + '...');
+
+                    var format = (f.file.type.split('/')[1] || (f.file.name.match(/\.([\w\d]+)$/) || [])[1] || '').toUpperCase();
+                    var obj = {
+                        filename: f.file.name,
+                        buffer: fr.result,
+                        documentType: f.type,
+                        documentFormat: format,
+                        documentId: f.id_number || undefined,
+                        expirationDate: f.exp_date || undefined,
+                        chunkSize: f.chunkSize,
+                        passthrough: {
+                            filename: f.file.name,
+                            name: f.name,
+                            class: f.class
+                        }
+                    };
+
+                    var error = { message: validate(obj) };
+                    if (error && error.message) {
+                        resolve({
+                            message: error.message,
+                            class: f.class
+                        });
+                    } else {
+                        $status.text(localize('Checked')).append($('<span/>', { class: 'checked' }));
+                    }
+
+                    resolve(obj);
+                };
+
+                fr.onerror = function () {
+                    resolve({
+                        message: 'Unable to read file ' + f.file.name,
+                        class: f.class
+                    });
+                };
+                // Reading file.
+                fr.readAsArrayBuffer(f.file);
             });
 
-            return Promise.all(promises);
+            promises.push(promise);
+        });
+
+        return Promise.all(promises);
+    };
+
+    var fileTracker = function fileTracker($e, selected) {
+        var doc_type = ($e.attr('data-type') || '').replace(/\s/g, '_').toLowerCase();
+        var file_type = ($e.attr('id').match(/\D+/g) || [])[0];
+        // Keep track of front and back sides of files.
+        if (selected) {
+            file_checks[doc_type] = file_checks[doc_type] || {};
+            file_checks[doc_type][file_type] = true;
+        } else if (file_checks[doc_type]) {
+            file_checks[doc_type][file_type] = false;
+        }
+    };
+
+    var onErrorResolved = function onErrorResolved(error_field, class_name, reverse_class_name) {
+        var id = error_field ? error_field + '_' + class_name.match(/\d+/)[0] : reverse_class_name;
+        $('#' + id).one('input change', function () {
+            $('label[for=' + class_name + ']').removeClass('error');
+            enableDisableSubmit();
+        });
+    };
+
+    var sides = ['front', 'back'];
+    var getReverseClass = function getReverseClass(class_name) {
+        var is_front = /front/.test(class_name);
+        return class_name.replace(sides[+!is_front], sides[+is_front]);
+    };
+
+    // Validate user input
+    var validate = function validate(file) {
+        var required_docs = ['passport', 'proofid', 'driverslicense'];
+        var doc_name = {
+            passport: localize('Passport'),
+            proofid: localize('Identity card'),
+            driverslicense: localize('Driving licence')
         };
 
-        var fileTracker = function fileTracker($e, selected) {
-            var doc_type = ($e.attr('data-type') || '').replace(/\s/g, '_').toLowerCase();
-            var file_type = ($e.attr('id').match(/\D+/g) || [])[0];
-            // Keep track of front and back sides of files.
-            if (selected) {
-                file_checks[doc_type] = file_checks[doc_type] || {};
-                file_checks[doc_type][file_type] = true;
-            } else if (file_checks[doc_type]) {
-                file_checks[doc_type][file_type] = false;
+        if (!(file.documentFormat || '').match(/^(PNG|JPG|JPEG|GIF|PDF)$/i)) {
+            return localize('Invalid document format: "[_1]"', [file.documentFormat]);
+        }
+        if (file.buffer && file.buffer.byteLength >= 8 * 1024 * 1024) {
+            return localize('File ([_1]) size exceeds the permitted limit. Maximum allowed file size: [_2]', [file.filename, '8MB']);
+        }
+        if (!file.documentId && required_docs.indexOf(file.documentType.toLowerCase()) !== -1) {
+            onErrorResolved('id_number', file.passthrough.class);
+            return localize('ID number is required for [_1].', [doc_name[file.documentType]]);
+        }
+        if (file.documentId && !/^[\w\s-]{0,30}$/.test(file.documentId)) {
+            onErrorResolved('id_number', file.passthrough.class);
+            return localize('Only letters, numbers, space, underscore, and hyphen are allowed for ID number ([_1]).', [doc_name[file.documentType]]);
+        }
+        if (!file.expirationDate && required_docs.indexOf(file.documentType.toLowerCase()) !== -1) {
+            onErrorResolved('exp_date', file.passthrough.class);
+            return localize('Expiry date is required for [_1].', [doc_name[file.documentType]]);
+        }
+        // These checks will only be executed when the user uploads the files for the first time, otherwise skipped.
+        if (!is_action_needed) {
+            if (file.documentType === 'proofid' && file_checks.proofid && file_checks.proofid.front_file ^ file_checks.proofid.back_file) {
+                // eslint-disable-line no-bitwise
+                onErrorResolved(null, file.passthrough.class, getReverseClass(file.passthrough.class));
+                return localize('Front and reverse side photos of [_1] are required.', [doc_name.proofid]);
             }
-        };
+            if (file.documentType === 'driverslicense' && file_checks.driverslicense && file_checks.driverslicense.front_file ^ file_checks.driverslicense.back_file) {
+                // eslint-disable-line no-bitwise
+                onErrorResolved(null, file.passthrough.class, getReverseClass(file.passthrough.class));
+                return localize('Front and reverse side photos of [_1] are required.', [doc_name.driverslicense]);
+            }
+        }
 
-        // Validate user input
-        var validate = function validate(file) {
-            var required_docs = ['passport', 'proofid', 'driverslicense'];
-            var doc_name = {
-                passport: localize('Passport'),
-                proofid: localize('Identity card'),
-                driverslicense: localize('Driving licence')
-            };
+        return null;
+    };
 
-            if (!(file.documentFormat || '').match(/^(PNG|JPG|JPEG|GIF|PDF)$/i)) {
-                return localize('Invalid document format: "[_1]"', [file.documentFormat]);
-            }
-            if (file.buffer && file.buffer.byteLength >= 8 * 1024 * 1024) {
-                return localize('File ([_1]) size exceeds the permitted limit. Maximum allowed file size: [_2]', [file.filename, '8MB']);
-            }
-            if (!file.documentId && required_docs.indexOf(file.documentType.toLowerCase()) !== -1) {
-                return localize('ID number is required for [_1].', [doc_name[file.documentType]]);
-            }
-            if (file.documentId && !/^[\w\s-]{0,30}$/.test(file.documentId)) {
-                return localize('Only letters, numbers, space, underscore, and hyphen are allowed for ID number ([_1]).', [doc_name[file.documentType]]);
-            }
-            if (!file.expirationDate && required_docs.indexOf(file.documentType.toLowerCase()) !== -1) {
-                return localize('Expiry date is required for [_1].', [doc_name[file.documentType]]);
-            }
-            // These checks will only be executed when the user uploads the files for the first time, otherwise skipped.
-            if (!is_action_needed) {
-                if (file_checks.proofid && file_checks.proofid.front_file ^ file_checks.proofid.back_file) {
-                    // eslint-disable-line no-bitwise
-                    return localize('Front and reverse side photos of [_1] are required.', [doc_name.proofid]);
-                }
-                if (file_checks.driverslicense && file_checks.driverslicense.front_file ^ file_checks.driverslicense.back_file) {
-                    // eslint-disable-line no-bitwise
-                    return localize('Front and reverse side photos of [_1] are required.', [doc_name.driverslicense]);
-                }
-            }
+    var showError = function showError(obj_error) {
+        removeButtonLoading();
+        var $error = $('#msg_form');
+        var $file_error = $submit_table.find('.' + obj_error.class + ' .status');
+        var message = obj_error.message;
+        if ($file_error.length) {
+            $file_error.text(message).addClass('error-msg');
+            $('label[for=' + obj_error.class + ']').addClass('error');
+            $('#resolve_error').setVisibility(1);
+        } else {
+            $error.text(message).setVisibility(1);
+        }
+        enableDisableSubmit();
+    };
 
-            return null;
-        };
-
-        var showError = function showError(e) {
-            var $error = $('.error-msg');
-            var message = e.message || e.message_to_client;
-            $error.setVisibility(1).text(message);
-            if (!('is_last_upload' in e) || e.is_last_upload) {
-                var should_show_success = is_any_upload_successful && e.is_last_upload;
-                if (!should_show_success) {
-                    // only enable if staying on the same form
-                    enableButton();
-                }
-                setTimeout(function () {
-                    $error.empty().setVisibility(0);
-                    if (should_show_success) {
-                        showSuccess();
-                    }
-                }, 3000);
-            }
-        };
-
-        var showSuccess = function showSuccess() {
-            var msg = localize('We are reviewing your documents. For more details [_1]contact us[_2].', ['<a href="' + Url.urlFor('contact') + '">', '</a>']);
-            displayNotification(msg, false, 'document_under_review');
+    var showSuccess = function showSuccess() {
+        var msg = localize('We are reviewing your documents. For more details [_1]contact us[_2].', ['<a href="' + Url.urlFor('contact') + '">', '</a>']);
+        displayNotification(msg, false, 'document_under_review');
+        setTimeout(function () {
             $('#not_authenticated, #not_authenticated_financial').setVisibility(0); // Just hide it
             $('#success-message').setVisibility(1);
-        };
+        }, 3000);
+    };
 
-        var onResponse = function onResponse(response, is_last_upload) {
-            var passthrough = response.passthrough;
-            if (!response.warning) {
-                is_any_upload_successful = true;
-            } else {
-                arr_duplicated_files.push(passthrough.filename + '(' + passthrough.name + ')');
-            }
-            if (arr_duplicated_files.length || 'error' in response) {
-                showError({
-                    is_last_upload: is_last_upload,
-                    message: arr_duplicated_files.length ? localize('Following file(s) were already uploaded: [_1]', ['[ ' + arr_duplicated_files.join(', ') + ' ]']) : response.error.message
-                });
-            } else if (is_any_upload_successful && is_last_upload) {
-                showSuccess();
-            }
-        };
+    var onResponse = function onResponse(response, is_last_upload) {
+        if (response.warning || response.error) {
+            is_any_upload_failed = true;
+            showError({
+                message: response.message || response.error.message,
+                class: response.passthrough.class
+            });
+        } else if (is_last_upload && !is_any_upload_failed) {
+            showSuccess();
+        }
     };
 
     return {
@@ -29378,6 +29429,7 @@ var Client = __webpack_require__(3);
 var BinarySocket = __webpack_require__(5);
 var FormManager = __webpack_require__(18);
 var localize = __webpack_require__(2).localize;
+var toTitleCase = __webpack_require__(17).toTitleCase;
 var getPropertyValue = __webpack_require__(1).getPropertyValue;
 
 var TwoFactorAuthentication = function () {
@@ -29416,7 +29468,7 @@ var TwoFactorAuthentication = function () {
             next_state = state[+!res.account_security.totp.is_enabled].slice(0, -1);
 
             $('#' + current_state).setVisibility(1);
-            $btn_submit.text(localize(next_state));
+            $btn_submit.text(localize(toTitleCase(next_state)));
             $form.setVisibility(1);
 
             FormManager.init(form_id, [{ selector: '#otp', validations: ['req', 'number', ['length', { min: 6, max: 6 }]], request_field: 'otp', no_scroll: true, clear_form_error_on_input: true }, { request_field: 'account_security', value: 1 }, { request_field: 'totp_action', value: next_state }]);
@@ -31582,7 +31634,7 @@ var SetCurrency = function () {
         if (Client.get('currency')) {
             if (is_new_account) {
                 $('#set_currency_loading').remove();
-                $('.has_currency, #set_currency').setVisibility(1);
+                $('#deposit_btn, #set_currency').setVisibility(1);
             } else {
                 BinaryPjax.loadPreviousUrl();
             }
@@ -31654,7 +31706,7 @@ var SetCurrency = function () {
                             } else {
                                 Header.populateAccountsList(); // update account title
                                 $('.select_currency').setVisibility(0);
-                                $('.has_currency').setVisibility(1);
+                                $('#deposit_btn').setVisibility(1);
                             }
                         }
                     });
