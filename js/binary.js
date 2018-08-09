@@ -22625,9 +22625,12 @@ var State = __webpack_require__(6).State;
 var toTitleCase = __webpack_require__(17).toTitleCase;
 var Url = __webpack_require__(8);
 var template = __webpack_require__(1).template;
+var isEmptyObject = __webpack_require__(1).isEmptyObject;
 
 var DepositWithdraw = function () {
     var default_iframe_height = 700;
+
+    var response_withdrawal = {};
 
     var cashier_type = void 0,
         token = void 0,
@@ -22659,20 +22662,29 @@ var DepositWithdraw = function () {
     var checkToken = function checkToken() {
         token = Url.getHashValue('token');
         if (!token) {
-            BinarySocket.send({
-                verify_email: Client.get('email'),
-                type: 'payment_withdraw'
-            }).then(function (response_withdraw) {
-                if ('error' in response_withdraw) {
-                    showError('custom_error', response_withdraw.error.message);
-                } else {
-                    showMessage('check_email_message');
-                }
-            });
+            if (isEmptyObject(response_withdrawal)) {
+                BinarySocket.send({
+                    verify_email: Client.get('email'),
+                    type: 'payment_withdraw'
+                }).then(function (response) {
+                    response_withdrawal = response;
+                    handleWithdrawalResponse();
+                });
+            } else {
+                handleWithdrawalResponse();
+            }
         } else if (!validEmailToken(token)) {
             showError('token_error');
         } else {
             getCashierURL();
+        }
+    };
+
+    var handleWithdrawalResponse = function handleWithdrawalResponse() {
+        if ('error' in response_withdrawal) {
+            showError('custom_error', response_withdrawal.error.message);
+        } else {
+            showMessage('check_email_message');
         }
     };
 
@@ -22886,6 +22898,7 @@ var DepositWithdraw = function () {
 
     var onUnload = function onUnload() {
         window.removeEventListener('message', setFrameHeight);
+        response_withdrawal = {};
     };
 
     return {
