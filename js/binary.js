@@ -1778,6 +1778,13 @@ var Header = function () {
                     }
                 });
             }
+        } else {
+            // logged-out
+            BinarySocket.wait('website_status').then(function () {
+                if (State.get('is_eu')) {
+                    displayNotification('In the EU, financial binary options are only available to professional investors.', false, 'MFSA_MESSAGE');
+                }
+            });
         }
     };
 
@@ -2010,7 +2017,7 @@ var Header = function () {
 
     var hideNotification = function hideNotification(msg_code) {
         var msg_notification = getElementById('msg_notification');
-        if (msg_notification.getAttribute('data-code') === 'STORAGE_NOT_SUPPORTED' || msg_code && msg_notification.getAttribute('data-code') !== msg_code) {
+        if (/^(STORAGE_NOT_SUPPORTED|MFSA_MESSAGE)$/.test(msg_notification.getAttribute('data-code')) || msg_code && msg_notification.getAttribute('data-code') !== msg_code) {
             return;
         }
 
